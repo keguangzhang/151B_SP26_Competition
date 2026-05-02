@@ -57,6 +57,30 @@ Reported MCQ accuracy is **~26%**, far below free-form. Contributing factors:
 - **Fallback letter extraction is brittle.** Taking the **last** isolated `A`–`Z` in the entire trace can align with the gold letter by accident or drift from the model’s true conclusion — but it cannot fix the majority of failures. Only **~22.4%** of MCQ items would be correct if credit required a **strict** `\boxed{Letter}` match (84 / 375), versus **26.1%** reported — so the heuristic buys a few points but does not fix format compliance.
 - **Most items are 10-option MCQs** (336 / 375); accuracy in that bucket stays near **25%**, consistent with difficulty and weak letter extraction combined.
 
+#### Wrong MCQ: token cap vs finished early
+
+Post-hoc analysis on **incorrect MCQ only** (277 rows) measures **completion length in tokens** using the model’s Hugging Face `tokenizer.json` (`tokenizers` encode of the full `response` string, no added special tokens). Same generation budget as the notebook: **`MAX_TOKENS = 4096`**.
+
+| Bucket | Count | % of wrong MCQ |
+|--------|------:|---------------:|
+| **≥ 4,096 tokens** (at/near cap — stop on length) | **244** | **88.1%** |
+| **< 4,096 tokens** (ended before cap — typical EOS) | **33** | **11.9%** |
+
+**Exactly 4,096 tokens:** 238 rows — almost all capped runs sit on the limit. Six rows encode as **4,097** tokens (likely tokenizer vs vLLM merge boundary); treat as same “hit limit” bucket.
+
+**Wrong MCQ with no `\boxed{Letter}` pattern** (269 rows):
+
+| | Count |
+|--|------:|
+| ≥ 4,096 tokens | **242** (~90% of no-box wrong) |
+| < 4,096 tokens | **27** (~10%) |
+
+So **most missing boxed answers coincide with max-length generations** — strong evidence the trace **runs out of budget** before a final `\boxed{X}` appears.
+
+**Wrong MCQ but `\boxed{letter}` present** (wrong letter / scorer still marks incorrect): **8** rows — **6** under cap, **2** at cap. Those failures are mostly **reasoning or letter choice**, not truncation.
+
+**Summary:** Among wrong MCQs, **~88%** are token-capped; only **~12%** finish under the cap while still wrong. **Capping dominates MCQ errors**, especially when no boxed letter appears.
+
 ### 2. Multi-answer free-form is harder
 
 Items with **multiple blanks** (gold `answer` is a list with length **> 1**) number **414**; accuracy is about **41%**, versus **~59%** for single-blank list answers. Ordering, comma-separated `\boxed{}` usage, and per-subpart errors all hurt.
@@ -89,7 +113,7 @@ INT8 reduces memory and speeds iteration, but it is a **capacity/compression** t
 
 ## Interpretation for improving the baseline
 
-- **MCQ:** Constrain decoding or post-process so a **single final `\boxed{A}`** (or constrained JSON) appears reliably — or fine-tune / prompt specifically to **stop after the boxed letter**. Reducing temperature for MCQ-only runs may help. The current metric mixes **reasoning quality** with **extractability**; improving format alone could lift MCQ substantially without changing “math ability.”
+- **MCQ:** **Raise `max_tokens`**, shorten reasoning (prompt / separate “answer-only” pass), or reserve budget so a final `\boxed{X}` fits — the analysis above shows **most wrong MCQs hit 4,096 tokens**. Also constrain decoding or post-process so a **single final `\boxed{A}`** (or constrained JSON) appears reliably; fine-tune / prompt to **stop after the boxed letter**. Reducing temperature for MCQ-only runs may help. The current metric mixes **reasoning quality** with **extractability**; improving format + budget could lift MCQ substantially without changing “math ability.”
 - **Free-form:** Target **multi-blank** prompts with explicit “Answer 1, Answer 2” structure; consider shorter `max_tokens` with stronger “final answer only” instructions to reduce runaway chains where the judger never sees a clean box.
 - **Hard topics:** Extra data or specialized verification (e.g., symbolic check for recurrences, diagram reasoning) may be needed for sequences and geometry.
 
