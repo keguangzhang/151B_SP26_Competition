@@ -9,22 +9,36 @@ Possible directions for improving baseline accuracy on the CSE 151B competition.
 - **Allowed levers:** prompt engineering, decoding strategies, supervised fine-tuning (LoRA/QLoRA/full), reinforcement learning (GRPO/DPO/RLOO/outcome-reward), self-consistency, model-internal verification (re-prompting same model).
 - **Metric:** unified accuracy = correct / total across MCQ + free-form. Equal weight per question.
 
-Since the baseline already lands ~33% MCQ and ~67% free-form on `public.jsonl`, *both* buckets matter, but **MCQ is the obvious bottleneck** at 26.1% vs free-form 48.1%.
+The current baseline (`max_tokens=8192`, `Qwen3-4B-Thinking-2507`, INT8, 1,126 examples on `public.jsonl`) lands **50.40% MCQ** and **53.79% free-form**, **52.66% overall**. Both buckets matter at roughly equal weight, but **MCQ format compliance** is now the dominant bottleneck — 87% of wrong MCQ responses lack `\boxed{Letter}`.
 
 ---
 
-## Measured results so far (`data/dev.jsonl`, 112 rows)
+## Measured results so far
 
-See `docs/tests.md` for full tables. Empirical findings have re-ranked the priority list below:
+### `data/dev.jsonl` ablations (112 rows)
+
+See `docs/tests.md` for full tables.
 
 | Change | MCQ Δ | Free-form Δ | Overall Δ |
 |--------|------:|------------:|----------:|
 | §1.3 prompt + temp tweak (MCQ-only) | −2.70 pp | +2.67 pp | +0.90 pp |
 | §1.2 `max_tokens` 4096 → 8192 | **+24.32 pp** | +2.67 pp | **+9.82 pp** |
 
-The token-budget bump is by far the biggest single lever observed and was previously underweighted ("Expected lift: +2–4pp"). The format-focused MCQ prompt change in §1.3 is essentially flat at this sample size. **Truncation, not format extraction, looks like the dominant MCQ bottleneck** — many reasoning chains that would emit `\boxed{Letter}` simply never reach the commit step at 4k tokens.
+### Full `public.jsonl` baseline (1,126 rows, 8k tokens) — **current baseline**
 
-This means §1.1 (guided decoding) may have *less* additional headroom than originally projected, since a large share of the "missing `\boxed{}`" cases turn out to be truncation rather than the model genuinely refusing to commit. Still worth running, but expectations should shift.
+| Split | Count | Accuracy |
+|-------|------:|---------:|
+| Overall | 1,126 | **52.66%** |
+| MCQ | 375 | **50.40%** |
+| Free-form | 751 | **53.79%** |
+
+Key findings from full-set analysis (`docs/baseline-public-analysis.md`):
+- **Format, not truncation, is now the MCQ bottleneck.** Only 6/186 wrong MCQ responses (~3%) hit the 8k cap. 87% of wrong MCQ responses have no `\boxed{Letter}`.
+- **When the model emits `\boxed{Letter}`, accuracy is 88.3%.** Lifting emission rate is the highest-value MCQ lever.
+- **Multi-blank free-form lags 16 pp** (46.7% vs 63.0% single-blank).
+- **Wrong free-form traces are 2.3× longer** (14,094 vs 6,204 chars mean).
+
+This flips the priority ordering: §1.1 (guided decoding / format enforcement) is now the **top** MCQ lever, not §1.2 which is already baked into the baseline.
 
 ---
 
@@ -41,27 +55,19 @@ Two implementations:
 - **Single-pass with stop sequence:** allow thinking, then require model to commit via a structured suffix like `\nFinal answer: \boxed{X}` where `X` is constrained to the legal letters. vLLM's `guided_decoding` can enforce the regex on the tail.
 - **Two-pass:** (a) run thinking pass with a budget (e.g. 3,500 tokens); (b) feed truncated trace + "Based on your analysis, the answer is `\boxed{`" and use guided choice to pick a letter. This guarantees a clean letter even when the trace is messy.
 
-The baseline analysis shows **91% accuracy when the model emits `\boxed{Letter}`**. So if we can lift the **emission rate** from ~22% → ~95%, MCQ accuracy moves from 26% toward the high 80s — easily the single biggest win available.
+The full-public baseline shows **88.3% accuracy when the model emits `\boxed{Letter}`** (205 items emitted; 181 correct). Current emission rate: 205/375 = **54.7%**. The 170 non-emitting items score only **4.7%** (fallback letter guesses). Lifting emission rate from 55% → 95% moves MCQ from 50% toward the high 80s — the single highest-value MCQ lever remaining.
 
-**Expected lift:** +15 to +25 percentage points on MCQ subset alone (≈ +5 to +8pp overall).
+**Expected lift:** +10 to +20 pp on MCQ subset (≈ +4 to +7pp overall), starting from the 8k baseline.
 
 **Risks:** guided decoding can interact with thinking-style models if applied to the entire sequence. Apply it only to the tail, not the reasoning trace.
 
-### 1.2 Lift / repartition `max_tokens` for MCQ — **CONFIRMED, biggest single win so far**
+### 1.2 Lift / repartition `max_tokens` — **DONE, now the baseline**
 
-88% of wrong MCQ hit the 4,096 cap. Two cheap mitigations:
+`max_tokens=8192` is already the current baseline. Key confirmed facts:
+- Full `public.jsonl` (1,126 rows): **+11.9 pp overall vs 4k run**, **+24.3 pp MCQ**.
+- Only **6/186** wrong MCQ responses (~3%) are near the 8k cap — truncation is no longer a meaningful failure mode.
 
-- **Raise to 8,192 or 16,384** for MCQ rows. The 4B-thinking model is fast; doubling budget roughly doubles MCQ wall time but is small compared to free-form share.
-- **Reserve budget:** generate up to N tokens, then if no `\boxed{}` yet, append `\n\nGiven the above, the answer is \boxed{` and continue with constrained decoding (combines with §1.1).
-
-**Measured (dev slice, 112 rows):** doubling `max_tokens` 4096 → 8192 with all other settings at the starter baseline (`temperature=0.6`, `top_p=0.95`, single MCQ prompt) yields **MCQ +24.32 pp**, free-form +2.67 pp, **overall +9.82 pp**. This is roughly an order of magnitude larger than the originally projected lift and makes §1.2 the obvious first move. Confirms the public-set diagnosis that truncation, not format, is the dominant failure mode on MCQ.
-
-**Next experiments to settle:**
-
-- Push to **16,384** and re-measure — diminishing returns expected, but find the knee.
-- Apply per-split (only MCQ rows get the larger budget) to control wall-clock cost.
-- Re-run on full `public.jsonl` to confirm the dev-slice MCQ lift is not sample-size noise (37 MCQ rows is small).
-- Re-measure §1.1 *on top of* the higher cap: with truncation removed, the marginal value of guided decoding is now an open question rather than the headline lever it was originally framed as.
+**Remaining experiment:** push to **16,384** (MCQ-only) to find the diminishing-returns knee. Low priority since format is now the bottleneck, but worth a quick run to rule out residual truncation on long MCQ stems.
 
 ### 1.3 MCQ-specific prompt + lower temperature — **TESTED, ≈ flat on dev slice**
 
@@ -73,13 +79,13 @@ The starter uses one prompt for MCQ vs free-form already. Strengthen the MCQ pro
 
 **Measured (dev slice, 112 rows):** stronger `\boxed{}` final-line clause + ~1500-token reasoning hint + MCQ-only `temperature=0.2`, `top_p=0.9`. Result: MCQ −2.70 pp, free-form +2.67 pp, **overall +0.90 pp** — essentially noise at this sample size.
 
-**Interpretation:** the format-only fix doesn't help much on its own because (a) the dominant MCQ failure is truncation (see §1.2), not the model failing to commit when given enough room, and (b) the 1500-token reasoning cap may actively hurt long-chain MCQ items. Worth retesting *without* the reasoning bound, on top of the §1.2 higher cap, to isolate which sub-change (if any) helps.
+**Interpretation (updated):** tested on the 4k baseline where truncation dominated, so the format clause had nothing to fix. Now that 8k is the baseline and format is the primary failure mode, retesting the format clause *without* the 1500-token reasoning cap is worthwhile. The lower temperature sub-change is also worth isolating — MCQ is closed-form and temperature=0.2 shouldn't hurt.
 
 ### 1.4 Self-consistency / majority vote
 
 Sample `k=5–8` completions per question, majority-vote the final boxed answer.
 
-- For MCQ: vote over extracted letter. With 91% per-sample correctness *given a boxed letter*, voting compounds reliability.
+- For MCQ: vote over extracted letter. With 88% per-sample correctness *given a boxed letter*, voting compounds reliability.
 - For free-form: vote over `simplify`-canonicalized boxed expressions (use `sympy` at scoring time only — judger code is allowed, just not at inference inside the model).
 
 Cost: linear in `k`. With INT8 + vLLM the 4B model is fast enough that `k=5` is realistic for ~1,100 prompts. Watch the GPU-hour budget.
@@ -88,7 +94,7 @@ Cost: linear in `k`. With INT8 + vLLM the 4B model is fast enough that `k=5` is 
 
 ### 1.5 Multi-blank free-form structure
 
-414 multi-blank items grade ~17pp lower than single-blank. Fix the prompt:
+424 multi-blank items score **16 pp lower** than single-blank (46.7% vs 63.0%). Fix the prompt:
 
 - Detect multi-blank by counting `____` / "(1)", "(2)" markers in the question (or by gold answer length when training).
 - Prompt: "Provide one `\boxed{...}` per blank, in order. Number them: `\boxed{ans1}, \boxed{ans2}, ...`."
@@ -98,7 +104,7 @@ Cost: linear in `k`. With INT8 + vLLM the 4B model is fast enough that `k=5` is 
 
 ### 1.6 Length-aware free-form stop
 
-Wrong free-form runs are 2× longer than correct ones (9.3k vs 4.4k chars). Soft fix: instruct the model to commit once it has a clean derivation, and add stop-sequence after first complete `\boxed{...}\n\n` *only after some minimum length*. Implement as post-hoc truncation if needed.
+Wrong free-form runs are **2.3× longer** than correct ones (14,094 vs 6,204 chars). Soft fix: instruct the model to commit once it has a clean derivation, and add stop-sequence after first complete `\boxed{...}\n\n` *only after some minimum length*. Implement as post-hoc truncation if needed.
 
 **Expected lift:** +1–3pp free-form. Lower priority — fixing it fully needs better reasoning, not better stops.
 
@@ -139,7 +145,7 @@ Thinking models can collapse if SFT data has shorter or formulaic chains. Mitiga
 - Train with `loss_on_response_only=True` — do not waste loss mass on the prompt.
 - Hold out 5–10% as eval; stop when free-form accuracy on `public.jsonl` plateaus.
 
-**Expected lift:** +5–15pp overall depending on data quality and overfit discipline. Larger lift on MCQ than free-form since the model already does free-form well.
+**Expected lift:** +5–15pp overall depending on data quality and overfit discipline. Larger lift on MCQ than free-form since the model already handles free-form reasonably well.
 
 ### 2.4 Format-only SFT (lightweight alternative)
 
@@ -158,7 +164,7 @@ Outcome-reward RL is the canonical step beyond SFT for math reasoning, and compe
 `judger.auto_judge` already gives a binary correctness signal. That is exactly what GRPO needs: per-sample reward ∈ {0, 1}.
 
 - Sample G=8 completions per prompt, normalize advantages within group, update LoRA adapters.
-- Reward: `judger` correctness. Add a small format-bonus (`+0.1` if a `\boxed{}` is emitted) to address the 88%-cap problem from MCQ analysis — it teaches the model to *commit* before running out of budget.
+- Reward: `judger` correctness. Add a small format-bonus (`+0.1` if a `\boxed{}` is emitted) to teach the model to commit before running out of budget.
 - Penalty: `-0.1` for hitting `max_tokens` without a boxed answer.
 
 Frameworks: `trl.GRPOTrainer` (HF), `verl` (ByteDance, faster on long traces), or `OpenRLHF`. `verl` is the right choice if traces are long.
@@ -181,24 +187,26 @@ If GRPO infrastructure is too heavy: collect pairs `(correct, incorrect)` from b
 
 ## Tier 4 — Targeted weaknesses (orthogonal)
 
-Per-topic accuracy from the baseline analysis:
+Per-topic accuracy from the 8k baseline (`docs/baseline-public-analysis.md`):
 
-| Topic | Baseline acc | Note |
-|-------|-------------:|------|
-| Sequences/recurrences | ~7% | dead zone |
-| Geometry | ~5% | dead zone |
-| Limits | ~20% | weak |
-| Linear algebra | ~25% | weak |
-| Derivatives | ~27% | weak |
-| Integration | ~31% | mid |
-| Stats / probability | ~38% | mid |
+| Topic | Count | Baseline acc (8k) | Note |
+|-------|------:|------------------:|------|
+| Number theory | 23 | **30.4%** | weakest |
+| Sequences / recurrences | 75 | **34.7%** | weak |
+| Geometry | 115 | **35.6%** | weak |
+| Limits | 14 | 35.7% | small n |
+| Probability / stats | 82 | 50.0% | mid |
+| Linear algebra | 23 | 52.2% | mid |
+| Derivatives | 12 | 58.3% | mid |
+| Polynomials / algebra | 146 | 59.6% | solid |
+| Integration | 55 | **74.5%** | standout |
 
 Two approaches:
 
-- **Few-shot exemplars:** detect topic via lightweight keyword matcher; route to a topic-specific 1–3-shot prompt with worked solutions in the same `\boxed{}` format. Particularly useful for sequences/geometry where format conventions matter.
-- **Topic-weighted SFT mix:** oversample sequences/recurrences and geometry in the SFT data (e.g., 3× weight). Even modest absolute gains in dead zones compound because they start so low.
+- **Few-shot exemplars:** detect topic via lightweight keyword matcher; route to a topic-specific 1–3-shot prompt with worked solutions in the same `\boxed{}` format. Particularly useful for number theory, sequences, and geometry where format conventions matter.
+- **Topic-weighted SFT mix:** oversample number theory, sequences/recurrences, and geometry in the SFT data (e.g., 3× weight). Even modest absolute gains in dead zones compound because they start so low.
 
-**Expected lift:** +1–3pp overall, mainly through dead-zone recovery.
+**Expected lift:** +1–3pp overall, mainly through weak-topic recovery.
 
 ---
 
@@ -214,25 +222,24 @@ If wall-clock matters for self-consistency (k=8 samples), spec decoding with a t
 
 ---
 
-## Suggested execution order (revised after dev-slice measurements)
+## Suggested execution order (revised for 8k baseline)
 
 | Order | Direction | Cost | ΔAcc (measured / expected) | Status |
 |-------|-----------|-----:|---------------------------:|:------|
-| 1 | §1.2 `max_tokens` 4096 → 8192 | minutes | **+9.82 pp overall, +24.32 pp MCQ** | ✅ measured on dev slice |
-| 2 | §1.2b Push `max_tokens` to 16,384 (MCQ-only if cost matters) | minutes | TBD — find the knee | next |
-| 3 | §1.5 Multi-blank free-form prompt | hours | +2–4pp expected | not yet tested |
-| 4 | §1.1 Guided decoding for MCQ tail (on top of higher cap) | day | originally +5–10pp; likely smaller now that truncation is fixed | re-scope |
+| — | §1.2 `max_tokens` 4096 → 8192 | — | **+9.82 pp overall, +24.32 pp MCQ** | ✅ done — now the baseline |
+| 1 | §1.1 Guided decoding for MCQ tail | hours | +10–20 pp MCQ expected (+4–7pp overall) | **next** |
+| 2 | §1.5 Multi-blank free-form prompt | hours | +3–6pp free-form expected | open |
+| 3 | §1.3 MCQ format clause *without* 1500-token cap + lower temp | hours | unknown; retesting on 8k baseline | re-scope |
+| 4 | §1.2b Push `max_tokens` to 16,384 (MCQ-only) | minutes | small; find diminishing-returns knee | low priority |
 | 5 | §1.4 Self-consistency k=5 | day (compute) | +3–7pp expected | open |
-| 6 | §1.3 MCQ prompt + temp tweak (revisit *without* 1500-token cap) | hours | dev-slice flat at +0.90 pp; isolate sub-changes on top of §1.2 | ⚠️ tested, no win |
+| 6 | §1.6 Length-aware free-form stop | hours | +1–3pp expected | open |
 | 7 | §5.1 Switch INT8 → BF16 if RAM allows | hour | +1–3pp expected | open |
 | 8 | §2.1–§2.3 QLoRA SFT on 50k Numina+R1-distill+MCQ mix | 1–2 days | +5–15pp expected | training tier |
 | 9 | §2.4 Format-correction mini-SFT (only if §1.1 still leaves gap) | half day | +3–6pp MCQ expected | conditional |
-| 10 | §4 Topic-weighted few-shot for sequences/geometry | day | +1–3pp expected | orthogonal |
+| 10 | §4 Topic-weighted few-shot for number theory/sequences/geometry | day | +1–3pp expected | orthogonal |
 | 11 | §3.1 GRPO with judger reward, format bonus | 2–4 days | +5–15pp expected | RL tier |
 
-**Why the reshuffle:** the §1.2 dev-slice result (+9.82 pp overall in minutes of work, no training) makes it the obvious first move. §1.3 was tried first historically and barely moved the needle, so it's now demoted from "ship today" to "revisit selectively." Re-measure §1.1 expectations *after* §1.2 lands on full `public.jsonl`, since the originally projected +15–25 pp MCQ from format extraction assumed a 22% emission rate that was driven mostly by truncation, not by the model refusing to commit.
-
-Re-measure on `public.jsonl` after each step — the analysis script in `results/starter_results.jsonl` is the right ground truth for ablations. The 112-row dev slice is fast but small, so single-step Δ < ~3 pp should be confirmed on the full set before being treated as real.
+**Why this ordering:** §1.1 (guided decoding) is now the top priority because format emission is the dominant MCQ failure mode at 8k tokens — 170/375 MCQ items never emit `\boxed{Letter}` and score ~5%. §1.5 is second because the 16pp multi-blank gap is cheap to attack via prompt alone. §1.3 is worth retesting now that it can actually address the real failure mode, but expectations are moderate. Re-measure on full `public.jsonl` after each step; dev-slice Δ < ~3 pp is too noisy to trust.
 
 ---
 
