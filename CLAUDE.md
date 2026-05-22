@@ -15,9 +15,13 @@ Read **`AGENTS.md`** first. It is the canonical contract for constraints, data l
 |------|------------|
 | Reproduce baseline | `starter_code_cse151b_comp.ipynb` |
 | Experiments / iteration | `notebooks/dev.ipynb` |
+| SFT QLoRA training | `notebooks/sft_train.ipynb` |
+| SFT checkpoint eval | `notebooks/sft_eval.ipynb` |
 | Private CSV submission | `notebooks/submission.ipynb` |
 | Understanding grades | `judger.py` |
-| Empirical priorities (truncation, MCQ, etc.) | `docs/improvement-directions.md` |
+| Docs index & current best | `docs/README.md` |
+| Experiment registry | `docs/log/experiments.md` |
+| Priorities & ideas | `docs/roadmap.md` |
 
 Notebooks under `notebooks/` set **`REPO_ROOT`** so `data/` and `results/` resolve whether the kernel cwd is the repo root or `notebooks/`.
 

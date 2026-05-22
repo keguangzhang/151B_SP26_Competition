@@ -48,13 +48,22 @@ id,response
 |------|------|
 | `starter_code_cse151b_comp.ipynb` | Official starter (repo root): setup, inference, public scoring |
 | `notebooks/dev.ipynb` | Local development / stratified dev slice |
+| `notebooks/sft_train.ipynb` | QLoRA SFT on `data/sft_corpus.jsonl` (smoke + full run; Drive checkpoints) |
+| `notebooks/sft_eval.ipynb` | SFT checkpoint eval on frozen `dev.jsonl` (LoRA + extended metrics) |
 | `notebooks/submission.ipynb` | Full `private.jsonl` inference → `results/submission.csv` |
 | `judger.py` | Grading logic aligned with the competition extractors |
 | `utils.py` | Shared normalization/utilities for `judger.py` |
 | `data/public.jsonl` | Labeled development set |
 | `data/private.jsonl` | Unlabeled test IDs for submission |
 | `results/` | Runtime outputs (e.g. JSONL predictions) |
-| `docs/improvement-directions.md` | Project notes: constraints, measured experiments, priorities |
+| `docs/README.md` | Docs index, current best scores, layout |
+| `docs/log/experiments.md` | Experiment registry (all runs) |
+| `docs/log/decisions.md` | Decision log for report / rationale |
+| `docs/roadmap.md` | Forward-looking improvement priorities |
+| `docs/report-outline.md` | Final report skeleton with links |
+| `docs/analysis/baseline-public-8k.md` | Full-public 8k baseline error analysis |
+| `docs/sft/pipeline.md` | SFT run plan |
+| `docs/infra/vllm-colab-l4.md` | Colab L4 + vLLM setup notes |
 
 ## Allowed improvement directions (high level)
 
