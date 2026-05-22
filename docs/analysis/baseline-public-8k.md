@@ -107,6 +107,10 @@ INT8 + 4B parameters prioritizes feasibility on one GPU over peak reasoning scor
 
 ---
 
+## Experiment registry
+
+- Run ID: [pub-001](../log/runs/pub-001-full-public-8k.md) in [`log/experiments.md`](../log/experiments.md)
+
 ## Files referenced
 
 - Results: `data/full_public_8k.jsonl` — fields `id`, `is_mcq`, `correct`
