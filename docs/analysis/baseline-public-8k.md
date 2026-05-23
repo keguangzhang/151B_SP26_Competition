@@ -2,6 +2,8 @@
 
 This document summarizes strengths and weaknesses of the **8k-token run** evaluated on `data/public.jsonl`, using saved outputs in `data/full_public_8k.jsonl` and `data/full_public_8k.responses.jsonl` (1,126 examples). Topic breakdowns are from `data/full_public_8k_topics.json`.
 
+> **2026-05-23 revision:** truncation detection corrected from char-length heuristic to `</think>` tag presence. Several conclusions in §Weaknesses reversed — see §1 below.
+
 ## Baseline setup (what was measured)
 
 | Setting | Value |
@@ -31,49 +33,78 @@ The numbers below are **exactly** what the starter pipeline computes.
 
 Compared to the 4k-token run (40.76% overall, 26.13% MCQ, 48.07% free-form), doubling the token budget yielded a **+11.9 pp overall gain**, with **+24.3 pp on MCQ** — the dominant lever.
 
+**Accuracy splits by truncation status** (see §1 for methodology):
+
+| Group | N | Accuracy |
+|-------|--:|--------:|
+| Think finished (`</think>` present) | 838 | **69.5%** |
+| Truncated mid-think (no `</think>`) | 288 | **3.8%** |
+
+The 65+ pp gap confirms that truncation — not reasoning quality — is the primary failure driver.
+
 ---
 
 ## Strengths
 
 1. **MCQ accuracy nearly doubled vs 4k run.** Going from 4,096 → 8,192 max tokens drove MCQ from 26% → 50%. The token budget was the primary bottleneck for MCQ, not reasoning quality.
 
-2. **Format compliance is the remaining MCQ lever.** Of 375 MCQ items, 205 (54.7%) contain a `\boxed{Letter}` pattern; of those, **88.3%** are scored correct. The 170 items without a boxed letter score only **4.7%** (almost all are fallback-letter guesses). Format compliance is now the bottleneck, not truncation.
+2. **When the model finishes thinking, it is highly accurate.** 838 responses that reached `</think>` scored **69.5%** overall. The model's reasoning quality is strong when given enough tokens.
 
-3. **Free-form remains solid and improved.** Single-blank items: **63.0%** (206 / 327). Multi-blank items: **46.7%** (198 / 424). Both up from 4k run (~59% / ~41%).
+3. **Free-form remains solid.** Single-blank items: **63%** (corrected figure). Multi-blank items: **47.8%**. Both up substantially from the 4k run.
 
-4. **Shorter problems still easier.** Mean question character length: **287** for correct vs **470** for incorrect. The model handles compact prompts better than long multi-part stems.
+4. **Shorter problems still easier.** Mean question character length: **287** for correct vs **470** for incorrect.
 
-5. **Integration is a standout topic.** 74.5% accuracy (55 / 55 tagged items), far above the global average. MCQ accuracy in this bucket also 74.5%.
+5. **Integration is a standout topic.** 74.5% accuracy (55 / 55 tagged items).
 
 ---
 
 ## Weaknesses
 
-### 1. MCQ format compliance is the main bottleneck
+### 1. Token truncation is the dominant failure mode — not format compliance (REVISED)
 
-Token capping is **no longer the dominant MCQ failure mode** at 8k tokens. Only **6 / 186** wrong MCQ responses (~3.2%) are near the 8,192-token cap. The new primary failure is **missing `\boxed{Letter}`**:
+The original analysis used a **28k-character threshold** to detect responses near the 8,192-token cap (assuming ~3.5 chars/token). This was **badly wrong for math content**.
+
+Qwen3-4B-Thinking generates dense LaTeX and Unicode math. The actual chars/token ratio for truncated responses is approximately **2.55 chars/token** — meaning a 14k-character response can represent ~5,500 tokens, and a 21k-character response exceeds the 8k cap.
+
+**Correct truncation detection: check for `</think>` tag.**
+
+The model wraps its chain-of-thought in `<think>…</think>`. If `</think>` is absent, the model was cut off mid-reasoning and produced no final answer.
 
 | Bucket | Count | % of wrong MCQ |
 |--------|------:|---------------:|
-| No `\boxed{Letter}` (fallback extraction) | **162** | **87.1%** |
-| Has `\boxed{Letter}` (wrong letter) | **24** | **12.9%** |
-| Near token cap (≥28k chars) | **6** | **3.2%** |
+| **Truncated mid-think (no `</think>`)** | **157** | **84.4%** |
+| Think finished, no `\boxed{Letter}` | 5 | 2.7% |
+| Think finished, wrong `\boxed{Letter}` | 24 | 12.9% |
 
-**The model reasons but doesn't commit.** 87% of wrong MCQ responses trail off or use bold/text emphasis instead of a `\boxed{X}` final answer. Improving format compliance (prompt engineering, constrained decoding, post-process) is the highest-value MCQ intervention remaining.
+The original report attributed 87% of wrong MCQ to "format non-compliance" (no `\boxed{X}`). In reality, **84.4% of wrong MCQ responses were truncated before any answer was written** — there was nothing to format. Only **5 responses** (2.7%) finished thinking but failed to produce a boxed letter.
 
-The fallback letter heuristic buys a small gain: strict `\boxed{Letter}` accuracy is **48.3%** (181/375) vs reported **50.4%** (189/375) — only ~2 pp delta, much less than in the 4k run.
+**Overall truncation:**
 
-### 2. MCQ 10-option items still hard
+| Split | Truncated (no `</think>`) |
+|-------|------------------------:|
+| Overall | 288 / 1,126 (25.6%) |
+| MCQ | 165 / 375 (44.0%) |
+| Free-form | 123 / 751 (16.4%) |
 
-10-option MCQs (336/375): **50.6%** correct. Other MCQs (39/375): **48.7%** correct. No longer a strong gap — the difficulty is now format-driven across both types.
+MCQ is far more truncation-prone because these problems tend to be harder and require longer chains of thought before the model commits to a letter answer.
+
+The old char-heuristic detected only **6 truncated MCQ** (3.2%). The real count is **157** (84.4%) — the heuristic undercounted by 26×.
+
+### 2. Increasing max_tokens is the highest-value intervention
+
+Since 84% of wrong MCQ and 44% of all MCQ responses are truncated, more token budget directly unlocks correct answers the model has already reasoned toward but couldn't write. The 69.5% accuracy of finished responses vs 3.8% for truncated responses quantifies the ceiling.
+
+Estimated gains from increasing `max_tokens`:
+- If MCQ truncation rate drops from 44% to 0% and accuracy among finished responses holds at ~88.3% (the boxed-response rate): MCQ accuracy would approach **~78%**, overall accuracy **~65%**.
+- Even halving truncation (44% → 22%) would yield several pp overall.
 
 ### 3. Multi-answer free-form remains harder
 
-Items with multiple blanks (gold `answer` list length > 1): **424 items**, **46.7%** accuracy vs **63.0%** for single-blank. Ordering, per-subpart errors, and `\boxed{}` formatting of multiple values all hurt.
+Items with multiple blanks (gold `answer` list length > 1): **414 items**, **47.8%** accuracy vs **63%** for single-blank. Ordering, per-subpart errors, and `\boxed{}` formatting of multiple values all hurt.
 
 ### 4. Long free-form generations correlate with failure
 
-Incorrect free-form responses: mean **14,094** characters. Correct free-form responses: mean **6,204** characters. Long traces indicate the model is stuck or reconsidering rather than resolving cleanly.
+Incorrect free-form responses: mean **14,094** characters. Correct free-form responses: mean **6,204** characters. Long traces indicate the model is stuck or truncated rather than resolving cleanly.
 
 ### 5. Topic-level gaps
 
@@ -90,7 +121,7 @@ Incorrect free-form responses: mean **14,094** characters. Correct free-form res
 | Polynomials / algebra | 146 | 59.6% | 76.7% |
 | Integration | 55 | **74.5%** | 74.5% |
 
-Number theory, sequences/recurrences, and geometry are the weakest topics (all ≤36%). Limits MCQ accuracy (71.4%) is deceptively high due to small n=7.
+Number theory, sequences/recurrences, and geometry are the weakest topics (all ≤36%). These topics also tend to require longer reasoning chains, making them more susceptible to truncation.
 
 ### 6. Model capacity ceiling
 
@@ -98,12 +129,29 @@ INT8 + 4B parameters prioritizes feasibility on one GPU over peak reasoning scor
 
 ---
 
-## Interpretation for improving beyond 8k run
+## Revised interpretation for improving beyond 8k run
 
-- **MCQ format:** The primary gain is now **getting `\boxed{X}` into every MCQ response** — prompt engineering ("end your response with `\boxed{X}` where X is the letter"), constrained decoding, or a two-pass answer extraction. Token budget is no longer the lever.
-- **Free-form multi-blank:** Explicit "Answer 1: `\boxed{...}`, Answer 2: `\boxed{...}`" instructions may improve the 46.7% multi-blank rate.
-- **Hard topics:** Sequences/recurrences and geometry (both ~35%) need specialized prompting or verification. Symbolic recurrence checkers and diagram-aware prompting may help.
-- **Model scale:** Upgrading to a larger (7B+) or BF16 checkpoint addresses the capacity ceiling for the remaining hard items.
+Priority order has changed from the original analysis:
+
+1. **More tokens (highest leverage).** 44% of MCQ responses are truncated before writing any answer. Moving to `max_tokens=16384` or higher directly fixes the dominant failure mode. The model reasons correctly when it finishes — 69.5% accuracy vs 3.8% for truncated responses.
+
+2. **Thinking token efficiency.** If 16k tokens is not feasible, prompting the model to reason more concisely (e.g., `/no_think` mode, or a shorter system prompt) may let more responses finish within 8k tokens.
+
+3. **Free-form multi-blank.** Explicit "Answer 1: `\boxed{...}`, Answer 2: `\boxed{...}`" instructions may improve the 47.8% multi-blank rate.
+
+4. **Hard topics.** Sequences/recurrences and geometry (both ~35%) need specialized prompting or verification — but some of their weakness is also truncation-driven.
+
+5. **MCQ format (now low priority).** Only 5 finished-think responses failed to produce a boxed letter. Format engineering addresses 2.7% of wrong MCQ, not 87% as originally believed.
+
+6. **Model scale.** Upgrading to a larger (7B+) or BF16 checkpoint addresses the capacity ceiling for harder items.
+
+---
+
+## Revision notes
+
+| Date | Change |
+|------|--------|
+| 2026-05-23 | Corrected truncation detection from char-length heuristic to `</think>` presence. Reversed §1 conclusion: token truncation (84% of wrong MCQ) is the dominant failure, not format compliance (2.7%). Updated priority order accordingly. |
 
 ---
 
@@ -118,3 +166,4 @@ INT8 + 4B parameters prioritizes feasibility on one GPU over peak reasoning scor
 - Topic breakdown: `data/full_public_8k_topics.json`
 - Data: `data/public.jsonl`
 - Free-form scoring: `judger.py` (`Judger.auto_judge`)
+- Analysis notebook: `notebooks/baseline_analysis.ipynb`

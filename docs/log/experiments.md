@@ -13,6 +13,7 @@ Stratified 10% per stratum, seed 42 — **112 rows** (37 MCQ, 75 free-form). See
 | [dev-003](runs/dev-003-max-tokens-8k.md) | — | `dev.jsonl` | 112 | `max_tokens` 4096 → **8192** | 54.05% | 54.67% | 54.46% | **+9.82 pp** | — | **shipped** | Confirmed on public → pub-001 |
 | [dev-004](runs/dev-004-guided-decoding-10pct.md) | — | `dev.jsonl` | 112 | §1.1 MCQ tail regex + 8k | 51.35% | 54.67% | 53.57% | −0.89 pp | — | done | No lift at n=37 MCQ |
 | [dev-005](runs/dev-005-guided-decoding-20pct.md) | — | `dev.jsonl` | 225 | Same as dev-004, **20%** dev slice | 53.33% | 52.00% | 52.44% | — | — | done | Still flat vs pub-001 MCQ |
+| [dev-006](runs/dev-006-concise-prompt.md) | 2026-05-23 | `dev.jsonl` | 225 | §1.2 "concise" system prompt (non-repetitive, commit once identified) | 48.00% | 54.67% | 52.44% | −0.2 pp | `results/dev_results_concise.jsonl` | rejected | No MCQ gain; truncation is structural, not prompt-addressable |
 
 ### Full public (`data/public.jsonl`)
 

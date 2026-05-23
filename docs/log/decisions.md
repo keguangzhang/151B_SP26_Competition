@@ -76,6 +76,24 @@ Append-only record of choices that matter for the final report. Template: **Cont
 
 ---
 
+## D006 — §1.2 concise-prompt rejected
+
+**Date:** 2026-05-23
+
+**Context:** 84% of wrong MCQ truncate mid-think at 8k tokens. Hypothesis: if the model reasons more concisely, more responses finish within budget and emit an answer.
+
+**Options:** (A) add "non-repetitive, commit once identified" to system prompt (B) keep baseline prompts (C) combine with 16k tokens
+
+**Decision:** **B** — §1.2 rejected; keep baseline prompts.
+
+**Rationale:** dev-006 (n=225, 20% dev slice) showed MCQ 48.00% vs 50.40% pub-001 baseline — flat to slightly worse. Concise instruction cannot overcome structural truncation; the model hits the 8k cap because the problems require long chains, not because it loops. Risk noted in roadmap materialized.
+
+**Consequences:** §1.1 (16k tokens, pub-002) remains the highest-priority fix. No prompt variant shipped.
+
+**Experiment:** [dev-006](runs/dev-006-concise-prompt.md)
+
+---
+
 ## D005 — SFT assistant schema: explicit `<think>` wrapper
 
 **Date:** 2026-05-21
