@@ -18,8 +18,9 @@ Registry row: [`pub-001`](log/experiments.md#pub-001). Analysis: [`analysis/base
 
 ## Active work
 
+- **Inference (highest priority):** `max_tokens=16384` run (`pub-002`) — 44% of MCQ truncated at 8k; more tokens directly fixes dominant failure. See [`roadmap.md`](roadmap.md) §1.1.
 - **SFT:** Numina-only QLoRA first run — see [`sft/pipeline.md`](sft/pipeline.md), data prep in `notebooks/sft_data_prep.ipynb`.
-- **Inference:** MCQ format / guided decoding — see [`roadmap.md`](roadmap.md) §1.1; dev results in [`log/experiments.md`](log/experiments.md).
+- **Analysis revised 2026-05-23:** token truncation (not format) is dominant MCQ failure. See [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md).
 
 ## Quick links
 
