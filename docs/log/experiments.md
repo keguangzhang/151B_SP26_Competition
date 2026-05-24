@@ -15,6 +15,9 @@ Stratified dev slice, seed 42 — **112 rows** at 10% (`DEV_FRACTION=0.10`) or *
 | [dev-005](runs/dev-005-guided-decoding-20pct.md) | — | `dev.jsonl` | 225 | Same as dev-004, **20%** dev slice | 53.33% | 52.00% | 52.44% | — | — | done | Still flat vs pub-001 MCQ |
 | [dev-006](runs/dev-006-concise-prompt.md) | 2026-05-23 | `dev.jsonl` | 225 | §1.2 "concise" system prompt (non-repetitive, commit once identified) | 48.00% | 54.67% | 52.44% | −0.2 pp | `results/dev_results_concise.jsonl` | rejected | No MCQ gain; truncation is structural, not prompt-addressable |
 | [dev-007](runs/dev-007-max-tokens-16k.md) | 2026-05-23 | `dev.jsonl` | 225 | `max_tokens` 8192 → **16384**, baseline prompts (20% slice) | **70.67%** | 54.67% | **60.00%** | **+7.56 pp** vs dev-006 | `results/dev_results_baseline_16k.jsonl` | done | Validates §1.1; run pub-002 on full public |
+| [dev-008-baseline-smoke](runs/dev-008-baseline-smoke.md) | 2026-05-24 | `dev.jsonl` smoke | 20 | §1.3 smoke — **baseline** prompts, multi-blank FF only (16k) | — | **30.00%** | **30.00%** | — | `results/dev_results_baseline_16k_smoke.jsonl` | done | A/B control for §1.3; 6/20 multi-blank |
+| [dev-008-smoke](runs/dev-008-smoke.md) | 2026-05-24 | `dev.jsonl` smoke | 20 | §1.3 — **multi_blank** prompt (`\\boxed{a}, \\boxed{b}` judger-compatible) | — | **40.00%** | **40.00%** | **+10 pp** vs baseline smoke | `results/dev_results_multi_blank_16k_smoke.jsonl` | smoke done | 8/20; → dev-008 |
+| [dev-008](runs/dev-008-multi-blank-16k.md) | 2026-05-24 | `dev.jsonl` | 112 | §1.3 **multi_blank** + 16k (10% dev) | **78.38%** | **58.67%** | **65.18%** | **+4.5 pp** vs 10% baseline 16k† | `results/dev_results_multi_blank_16k.jsonl` | done | Multi-blank **50%** (19/38); pub pending |
 
 ### Full public (`data/public.jsonl`)
 
