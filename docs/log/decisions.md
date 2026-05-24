@@ -94,6 +94,24 @@ Append-only record of choices that matter for the final report. Template: **Cont
 
 ---
 
+## D007 — 16k `max_tokens` validated on dev; proceed to pub-002
+
+**Date:** 2026-05-23
+
+**Context:** Truncation drives 44% of MCQ failures at 8k ([analysis](../analysis/baseline-public-8k.md)). §1.2 concise prompting rejected ([D006](#d006--12-concise-prompt-rejected)); §1.1 doubles the generation budget.
+
+**Options:** (A) run full public at 16k (pub-002) (B) stay at 8k (C) MCQ-only 16k
+
+**Decision:** **A** — run pub-002 on full `public.jsonl` before shipping; do not change shipped baseline until confirmed.
+
+**Rationale:** dev-007 (n=225, 20% slice): MCQ **70.67%** (+20.3 pp vs pub-001), overall **60.00%** (+7.6 pp vs 8k dev slice). Free-form flat (54.67%) — lift is almost entirely MCQ, matching truncation hypothesis.
+
+**Consequences:** §1.1 dev gate passed. Update inference baseline only after pub-002. Artifact naming: `dev_results_{variant}_{Nk}k.jsonl`.
+
+**Experiment:** [dev-007](runs/dev-007-max-tokens-16k.md)
+
+---
+
 ## D005 — SFT assistant schema: explicit `<think>` wrapper
 
 **Date:** 2026-05-21

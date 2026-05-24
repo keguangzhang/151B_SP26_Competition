@@ -11,7 +11,7 @@ Fill each section with links to registry rows and analysis — avoid copying met
 
 ## 2. Baseline system
 
-- Model and stack: Qwen3-4B-Thinking, vLLM, INT8 — [`infra/vllm-colab-l4.md`](infra/vllm-colab-l4.md).
+- Model and stack: Qwen3-4B-Thinking, vLLM — L4 INT8 ([`infra/vllm-colab-l4.md`](infra/vllm-colab-l4.md)); A100 bf16 dev profile ([`infra/vllm-inference-config.md`](infra/vllm-inference-config.md)).
 - Evaluation protocol: `judger.py`, dev slice definition — [`log/runs/dev-001-baseline.md`](log/runs/dev-001-baseline.md).
 - **Shipped baseline:** [pub-001](log/experiments.md#pub-001) — [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md).
 

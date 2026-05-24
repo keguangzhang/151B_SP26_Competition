@@ -24,7 +24,7 @@ See [`reference/constraints.md`](reference/constraints.md). Current shipped base
 
 - **Expected:** MCQ truncation 44% → ~10–15%; MCQ accuracy ~70–78%; overall ~62–68%.
 - **Ceiling:** finished-response accuracy is ~69.5% overall; more tokens gets more responses there.
-- **Status:** open — run `pub-002`.
+- **Status:** dev validated — [dev-007](log/runs/dev-007-max-tokens-16k.md) (225 rows): MCQ **70.67%**, overall **60.00%** (+7.56 pp vs dev-006). **Next:** run `pub-002` on full public.
 
 ### 1.2 Thinking-efficiency prompting — **next if 16k not feasible**
 

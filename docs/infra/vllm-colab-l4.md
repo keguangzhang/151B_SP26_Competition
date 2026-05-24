@@ -1,6 +1,8 @@
-# vLLM on Google Colab (L4 GPU) — Notebook Changes
+# vLLM on Google Colab — install & notebook plumbing
 
-This document summarizes the modifications in `starter_code_cse151b_comp.ipynb` needed to run **vLLM** with **Qwen3-4B-Thinking** on **Colab with an L4** (and generally Colab GPU runtimes), instead of a local `uv` workflow.
+Colab-specific **install**, **env vars**, and **Jupyter workarounds** for vLLM. For `LLM(...)` tuning (L4 INT8 vs A100 bf16), see [`vllm-inference-config.md`](vllm-inference-config.md).
+
+This document summarizes changes in `starter_code_cse151b_comp.ipynb` (and shared cells in `notebooks/dev.ipynb`) needed to run **vLLM** with **Qwen3-4B-Thinking** on **Colab**, instead of a local `uv` workflow. Primary target: **L4 24 GB**; dev runs on **A100** use a different load profile (documented there).
 
 ---
 
@@ -51,14 +53,13 @@ The notebook wraps stdout/stderr with **`os.fdopen(1, ...)`** and **`os.fdopen(2
 
 ---
 
-## 5. `LLM(...)` constructor tweaks for notebook + VRAM
+## 5. `LLM(...)` constructor — see inference profiles
 
-These flags trade some performance for **reliability and memory** on a single L4:
+**Full parameter tables, A100 vs L4 rationale, and OOM fallbacks:** [`vllm-inference-config.md`](vllm-inference-config.md).
 
-- **`enforce_eager=True`** — avoids CUDA graph / compilation paths that are fussier in constrained notebook environments.
-- **`enable_prefix_caching=False`** — reduces complexity and memory behavior for the baseline.
-- **`quantization="bitsandbytes"`** + **`load_format="bitsandbytes"`** — INT8 via BitsAndBytes to fit context + KV cache on **24 GB** L4.
-- Tunables in the starter: `gpu_memory_utilization`, `max_model_len`, `max_num_seqs`, `max_num_batched_tokens` — adjust if you hit OOM or want throughput changes.
+**L4 / starter** (`starter_code_cse151b_comp.ipynb`, `full_public.ipynb`): INT8 bitsandbytes, `max_model_len=16384`, `gpu_memory_utilization=0.88`, prefix caching on, **`enforce_eager` off** (CUDA graphs + compile enabled).
+
+**A100 / dev** (`notebooks/dev.ipynb` §7): native **bf16**, `max_model_len=32768`, `enable_chunked_prefill=True`, higher batch limits — for 16k `MAX_TOKENS` runs without quantization overhead.
 
 ---
 

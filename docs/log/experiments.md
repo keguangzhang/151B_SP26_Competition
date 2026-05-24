@@ -4,7 +4,7 @@ Master table of inference and training runs. **Detailed notes:** [`runs/`](runs/
 
 ### Dev slice (`data/dev.jsonl`)
 
-Stratified 10% per stratum, seed 42 — **112 rows** (37 MCQ, 75 free-form). See `notebooks/dev.ipynb`.
+Stratified dev slice, seed 42 — **112 rows** at 10% (`DEV_FRACTION=0.10`) or **225 rows** at 20%. See `notebooks/dev.ipynb`.
 
 | ID | Date | Eval set | N | Change (one line) | MCQ | Free-form | Overall | Δ overall | Artifacts | Status | Notes |
 |----|------|----------|---|-------------------|-----|-----------|---------|-----------|-----------|--------|-------|
@@ -14,6 +14,7 @@ Stratified 10% per stratum, seed 42 — **112 rows** (37 MCQ, 75 free-form). See
 | [dev-004](runs/dev-004-guided-decoding-10pct.md) | — | `dev.jsonl` | 112 | §1.1 MCQ tail regex + 8k | 51.35% | 54.67% | 53.57% | −0.89 pp | — | done | No lift at n=37 MCQ |
 | [dev-005](runs/dev-005-guided-decoding-20pct.md) | — | `dev.jsonl` | 225 | Same as dev-004, **20%** dev slice | 53.33% | 52.00% | 52.44% | — | — | done | Still flat vs pub-001 MCQ |
 | [dev-006](runs/dev-006-concise-prompt.md) | 2026-05-23 | `dev.jsonl` | 225 | §1.2 "concise" system prompt (non-repetitive, commit once identified) | 48.00% | 54.67% | 52.44% | −0.2 pp | `results/dev_results_concise.jsonl` | rejected | No MCQ gain; truncation is structural, not prompt-addressable |
+| [dev-007](runs/dev-007-max-tokens-16k.md) | 2026-05-23 | `dev.jsonl` | 225 | `max_tokens` 8192 → **16384**, baseline prompts (20% slice) | **70.67%** | 54.67% | **60.00%** | **+7.56 pp** vs dev-006 | `results/dev_results_baseline_16k.jsonl` | done | Validates §1.1; run pub-002 on full public |
 
 ### Full public (`data/public.jsonl`)
 
@@ -34,7 +35,7 @@ Stratified 10% per stratum, seed 42 — **112 rows** (37 MCQ, 75 free-form). See
 
 ## How to add a run
 
-1. Pick the next ID (`dev-006`, `pub-002`, …).
+1. Pick the next ID (`dev-008`, `pub-002`, …).
 2. Add a row above with metrics and artifact paths.
 3. Create `log/runs/<id>-<short-slug>.md` with setup, commands, failures, and takeaway.
 4. If the run changes strategy, add an entry to [`decisions.md`](decisions.md).
