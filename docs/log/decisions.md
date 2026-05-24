@@ -112,6 +112,24 @@ Append-only record of choices that matter for the final report. Template: **Cont
 
 ---
 
+## D008 — 32k `max_tokens` rejected; stay at 16k
+
+**Date:** 2026-05-24
+
+**Context:** After dev-007/dev-008 validated 16k on A100, checked whether `MAX_TOKENS=32768` with `max_model_len=32768` unlocks further gains on the same 10% dev slice ([dev-008](runs/dev-008-multi-blank-16k.md) setup).
+
+**Options:** (A) adopt 32k for pub-002 (B) keep 16k (C) raise `max_model_len` beyond 32k for true 32k+ generation headroom
+
+**Decision:** **B** — keep 16k generation cap; do not pursue 32k or higher `max_model_len` without new truncation evidence.
+
+**Rationale:** dev-009 (n=112, multi_blank): overall **64.29%** vs dev-008 **65.18%** (−0.89 pp). MCQ identical (78.38%); free-form slightly worse (57.33% vs 58.67%). No MCQ truncation benefit beyond 16k on this slice.
+
+**Consequences:** pub-002 and submission path stay at `max_tokens=16384`. Option C deferred unless full-public analysis shows residual 16k truncation.
+
+**Experiment:** [dev-009](runs/dev-009-max-tokens-32k.md)
+
+---
+
 ## D005 — SFT assistant schema: explicit `<think>` wrapper
 
 **Date:** 2026-05-21

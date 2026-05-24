@@ -18,7 +18,7 @@ Registry row: [`pub-001`](log/experiments.md#pub-001). Analysis: [`analysis/base
 
 ## Active work
 
-- **Inference (highest priority):** `max_tokens=16384` full-public run (`pub-002`) — dev slice validated at 60% overall / 70.7% MCQ ([dev-007](log/runs/dev-007-max-tokens-16k.md)). See [`roadmap.md`](roadmap.md) §1.1.
+- **Inference (highest priority):** `max_tokens=16384` full-public run (`pub-002`) — dev slice validated at 60% overall / 70.7% MCQ ([dev-007](log/runs/dev-007-max-tokens-16k.md)); 32k ablation flat ([dev-009](log/runs/dev-009-max-tokens-32k.md)). See [`roadmap.md`](roadmap.md) §1.1.
 - **SFT:** Numina-only QLoRA first run — see [`sft/pipeline.md`](sft/pipeline.md), data prep in `notebooks/sft_data_prep.ipynb`.
 - **Analysis revised 2026-05-23:** token truncation (not format) is dominant MCQ failure. See [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md).
 
