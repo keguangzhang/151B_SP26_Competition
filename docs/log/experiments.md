@@ -18,6 +18,7 @@ Stratified dev slice, seed 42 — **112 rows** at 10% (`DEV_FRACTION=0.10`) or *
 | [dev-008-baseline-smoke](runs/dev-008-baseline-smoke.md) | 2026-05-24 | `dev.jsonl` smoke | 20 | §1.3 smoke — **baseline** prompts, multi-blank FF only (16k) | — | **30.00%** | **30.00%** | — | `results/dev_results_baseline_16k_smoke.jsonl` | done | A/B control for §1.3; 6/20 multi-blank |
 | [dev-008-smoke](runs/dev-008-smoke.md) | 2026-05-24 | `dev.jsonl` smoke | 20 | §1.3 — **multi_blank** prompt (`\\boxed{a}, \\boxed{b}` judger-compatible) | — | **40.00%** | **40.00%** | **+10 pp** vs baseline smoke | `results/dev_results_multi_blank_16k_smoke.jsonl` | smoke done | 8/20; → dev-008 |
 | [dev-008](runs/dev-008-multi-blank-16k.md) | 2026-05-24 | `dev.jsonl` | 112 | §1.3 **multi_blank** + 16k (10% dev) | **78.38%** | **58.67%** | **65.18%** | **+4.5 pp** vs 10% baseline 16k† | `results/dev_results_multi_blank_16k.jsonl` | done | Multi-blank **50%** (19/38); pub pending |
+| [dev-009](runs/dev-009-max-tokens-32k.md) | 2026-05-24 | `dev.jsonl` | 112 | **32k** `max_tokens` ablation (multi_blank, same slice as dev-008) | **78.38%** | 57.33% | 64.29% | **−0.89 pp** vs dev-008 | `results/dev_results_multi_blank_32k.jsonl` | rejected | No lift vs 16k; MCQ flat, FF −1.3 pp |
 
 ### Full public (`data/public.jsonl`)
 

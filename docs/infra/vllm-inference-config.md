@@ -110,8 +110,9 @@ llm = LLM(
 | starter | 16384 | 4096 | Original cap |
 | full_public / pub-001 | 16384 | **8192** | Shipped baseline |
 | dev (dev-007) | **32768** | **16384** | §1.1 truncation fix |
+| dev (dev-009) | **32768** | **32768** | 32k ablation — no lift vs 16k ([run note](../log/runs/dev-009-max-tokens-32k.md)) |
 
-`max_tokens` in `SamplingParams` must be **≤ `max_model_len`** minus prompt length. Engine `max_model_len` is the hard per-request ceiling; raising `MAX_TOKENS` alone does nothing if the engine cap is lower.
+`max_tokens` in `SamplingParams` must be **≤ `max_model_len`** minus prompt length. Engine `max_model_len` is the hard per-request ceiling; raising `MAX_TOKENS` alone does nothing if the engine cap is lower. At `max_model_len=32768`, `MAX_TOKENS=32768` consumes nearly the full window (prompt + generation); validated ceiling for gains is **16384** ([D008](../log/decisions.md#d008--32k-max_tokens-rejected-stay-at-16k)).
 
 ---
 
@@ -130,4 +131,5 @@ Set **before** `from vllm import LLM` (see [`vllm-colab-l4.md`](vllm-colab-l4.md
 | Date | Change |
 |------|--------|
 | 2026-05-24 | Document dev A100 bf16 profile (`max_model_len=32k`, chunked prefill, prefix cache). |
+| 2026-05-24 | dev-009: `MAX_TOKENS=32768` ablation — no gain vs 16k; keep 16k cap. |
 | earlier | L4 INT8 profile in starter; `enforce_eager` removed, prefix caching enabled. |

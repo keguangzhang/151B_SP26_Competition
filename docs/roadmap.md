@@ -24,7 +24,7 @@ See [`reference/constraints.md`](reference/constraints.md). Current shipped base
 
 - **Expected:** MCQ truncation 44% → ~10–15%; MCQ accuracy ~70–78%; overall ~62–68%.
 - **Ceiling:** finished-response accuracy is ~69.5% overall; more tokens gets more responses there.
-- **Status:** dev validated — [dev-007](log/runs/dev-007-max-tokens-16k.md) (225 rows): MCQ **70.67%**, overall **60.00%** (+7.56 pp vs dev-006). Further confirmed in [dev-008](log/runs/dev-008-multi-blank-16k.md) at 10% dev (MCQ **78.38%** with same 16k budget). **Next:** ship combined `pub-002` (16k + §1.3 multi_blank).
+- **Status:** dev validated — [dev-007](log/runs/dev-007-max-tokens-16k.md) (225 rows): MCQ **70.67%**, overall **60.00%** (+7.56 pp vs dev-006). Further confirmed in [dev-008](log/runs/dev-008-multi-blank-16k.md) at 10% dev (MCQ **78.38%** with same 16k budget). **32k check:** [dev-009](log/runs/dev-009-max-tokens-32k.md) — flat MCQ, overall −0.9 pp vs dev-008; **16k is sufficient** on A100 with `max_model_len=32768`. **Next:** ship combined `pub-002` (16k + §1.3 multi_blank).
 
 ### 1.2 Thinking-efficiency prompting — **next if 16k not feasible**
 
@@ -91,6 +91,14 @@ Add one worked example (2-blank question → `\boxed{a}, \boxed{b}` response) to
 - **Expected:** +1–3 pp multi-blank.
 - **Cost:** prompt-only; isolated to multi-blank route.
 - **Status:** open.
+
+### 1.13 Progressive-hint prompting (PHP) — **cheaper midpoint to self-consistency**
+
+Two-pass: run #1 produces a tentative answer; run #2 is re-prompted with "your previous attempt was X, verify or revise." Plays well with thinking models (pass 2 reasons against an anchor) and costs 2× instead of self-consistency's 5×.
+
+- **Expected:** +2–4 pp overall; sits between §1.10 retry (1–2×) and §1.4 self-consistency k=5 (5×) on the cost/lift curve.
+- **Risk:** pass 2 can anchor on a wrong pass-1 answer; mitigate with a neutral re-prompt ("reconsider carefully") rather than affirming the prior answer.
+- **Status:** open — test after §1.8 confirms truncation is no longer the dominant failure.
 
 ### 1.12 Budget-forced thinking cap
 
@@ -168,15 +176,16 @@ Throughput for self-consistency only.
 | 4 | §1.11 Multi-blank few-shot exemplar | +1–3 pp multi-blank | hour | open |
 | 5 | §1.10 Retry-on-truncation | +1–4 pp overall | hours | conditional on §1.8 |
 | 6 | §1.12 Budget-forced thinking cap | +1–3 pp | hours | conditional on §1.8 |
-| 7 | §1.2 Thinking-efficiency prompt (if 16k constrained) | +3–8 pp MCQ | hours | ~~rejected~~ [dev-006](log/runs/dev-006-concise-prompt.md) |
-| 8 | §1.4 Self-consistency k=5 | +3–7 pp overall | day | open — after pub-002 |
-| 9 | §5.1 INT8 → BF16 | +1–3 pp | hour | open |
-| 10 | §2 Numina QLoRA SFT | unknown | 1–2 days | [sft-001](log/experiments.md) planned |
-| 11 | §2.4 Format mini-SFT | conditional | half day | conditional |
-| 12 | §1.7 Length-aware FF stop | +1–3 pp FF | hours | open |
-| 13 | §4 Topic few-shot / weighted mix | unknown | day | open |
-| 14 | §1.6 Guided decoding | +0–2 pp MCQ | hours | deprioritized |
-| 15 | §3 GRPO | unknown | 2–4 days | open |
+| 7 | §1.13 Progressive-hint prompting (2-pass) | +2–4 pp overall | hours | open — cheaper midpoint to §1.4 |
+| 8 | §1.2 Thinking-efficiency prompt (if 16k constrained) | +3–8 pp MCQ | hours | ~~rejected~~ [dev-006](log/runs/dev-006-concise-prompt.md) |
+| 9 | §1.4 Self-consistency k=5 | +3–7 pp overall | day | open — after pub-002 |
+| 10 | §5.1 INT8 → BF16 | +1–3 pp | hour | open |
+| 11 | §2 Numina QLoRA SFT | unknown | 1–2 days | [sft-001](log/experiments.md) planned |
+| 12 | §2.4 Format mini-SFT | conditional | half day | conditional |
+| 13 | §1.7 Length-aware FF stop | +1–3 pp FF | hours | open |
+| 14 | §4 Topic few-shot / weighted mix | unknown | day | open |
+| 15 | §1.6 Guided decoding | +0–2 pp MCQ | hours | deprioritized |
+| 16 | §3 GRPO | unknown | 2–4 days | open |
 
 Re-measure on full `public.jsonl` after each shipped inference change; dev Δ &lt; ~3 pp is noise at n=112.
 
