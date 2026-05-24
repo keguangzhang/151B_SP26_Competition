@@ -18,7 +18,7 @@ Registry row: [`pub-001`](log/experiments.md#pub-001). Analysis: [`analysis/base
 
 ## Active work
 
-- **Inference (highest priority):** `max_tokens=16384` run (`pub-002`) — 44% of MCQ truncated at 8k; more tokens directly fixes dominant failure. See [`roadmap.md`](roadmap.md) §1.1.
+- **Inference (highest priority):** `max_tokens=16384` full-public run (`pub-002`) — dev slice validated at 60% overall / 70.7% MCQ ([dev-007](log/runs/dev-007-max-tokens-16k.md)). See [`roadmap.md`](roadmap.md) §1.1.
 - **SFT:** Numina-only QLoRA first run — see [`sft/pipeline.md`](sft/pipeline.md), data prep in `notebooks/sft_data_prep.ipynb`.
 - **Analysis revised 2026-05-23:** token truncation (not format) is dominant MCQ failure. See [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md).
 
@@ -34,7 +34,8 @@ Registry row: [`pub-001`](log/experiments.md#pub-001). Analysis: [`analysis/base
 | 8k public error analysis | [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md) |
 | SFT plan / data spec / QA | [`sft/`](sft/) |
 | Numina clean corpus audit (2026-05-21) | [`sft/numina-clean-audit.md`](sft/numina-clean-audit.md) |
-| Colab + vLLM setup | [`infra/vllm-colab-l4.md`](infra/vllm-colab-l4.md) |
+| Colab + vLLM install / env | [`infra/vllm-colab-l4.md`](infra/vllm-colab-l4.md) |
+| vLLM `LLM(...)` profiles (L4 vs A100) | [`infra/vllm-inference-config.md`](infra/vllm-inference-config.md) |
 | Competition constraints | [`reference/constraints.md`](reference/constraints.md) |
 
 ## Layout

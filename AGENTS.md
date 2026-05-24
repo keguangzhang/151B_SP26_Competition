@@ -63,7 +63,8 @@ id,response
 | `docs/report-outline.md` | Final report skeleton with links |
 | `docs/analysis/baseline-public-8k.md` | Full-public 8k baseline error analysis |
 | `docs/sft/pipeline.md` | SFT run plan |
-| `docs/infra/vllm-colab-l4.md` | Colab L4 + vLLM setup notes |
+| `docs/infra/vllm-colab-l4.md` | Colab install, env vars, Jupyter vLLM quirks |
+| `docs/infra/vllm-inference-config.md` | `LLM(...)` profiles: L4 INT8 (starter) vs A100 bf16 (dev) |
 
 ## Allowed improvement directions (high level)
 
