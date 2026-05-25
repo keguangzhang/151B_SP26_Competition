@@ -26,6 +26,8 @@ Stratified dev slice, seed 42 — **112 rows** at 10% (`DEV_FRACTION=0.10`) or *
 |----|------|----------|---|-------------------|-----|-----------|---------|-----------|--------|-------|
 | [pub-001](runs/pub-001-full-public-8k.md) | — | `public.jsonl` | 1126 | 8k tokens, starter prompts (current baseline) | 50.40% | 53.79% | **52.66%** | `data/full_public_8k*.jsonl` | **shipped** | [`analysis/baseline-public-8k.md`](../analysis/baseline-public-8k.md) |
 
+| [pub-002](runs/pub-002-full-public-16k.md) | 2026-05-24 | `public.jsonl` | 1126 | 16k tokens, adaptive prompts (§1.3 multi-blank for 2+ `[ANS]`), **bf16 on A100** (was L4 INT8 in pub-001) | 72.00% | 56.86% | **61.90%** | `data/full_public_16k*.jsonl` | **shipped** | [`analysis/baseline-public-16k.md`](../analysis/baseline-public-16k.md) — Δ vs pub-001 conflates 3 changes: tokens, prompt, precision+hardware |
+
 ### SFT / submission
 
 | ID | Date | Eval set | N | Change (one line) | MCQ | Free-form | Overall | Artifacts | Status | Notes |
