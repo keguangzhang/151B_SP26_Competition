@@ -145,3 +145,23 @@ Append-only record of choices that matter for the final report. Template: **Cont
 **Consequences:** Numina (and any SFT) `response` strings must use the explicit wrapper; do not rely on plain CoT in `render_training_messages`. Record `thinking_template: "explicit_redacted_thinking"` in `data/sft_corpus_manifest.json` when the corpus is built. Unblocks M3 / trace generation in [sft/data-spec.md](../sft/data-spec.md).
 
 ---
+
+## D009 — bf16 LoRA replaces QLoRA for sft-001 (A100-only)
+
+**Date:** 2026-05-24
+
+**Context:** [sft/pipeline.md](../sft/pipeline.md) Training config originally specified QLoRA 4-bit NF4 + paged AdamW 8-bit (via `bitsandbytes`). Memory check on A100 40 GB shows Qwen3-4B (~8 GB bf16) + LoRA r=32 + Adam states + activations at 8k seq, mb=1, grad-ckpt fits in ~22–30 GB — comfortably within 40 GB.
+
+**Options:** (A) keep QLoRA 4-bit + paged AdamW 8-bit (B) **bf16 LoRA + `adamw_torch_fused`, A100-only, no L4 fallback** (C) flag-toggled both paths
+
+**Decision:** **B** — drop `bitsandbytes` entirely; bf16 base + bf16 LoRA + bf16 compute on A100. No 4-bit path, no L4 path. If Colab assigns L4, abort the session.
+
+**Rationale:** A100 has native bf16 tensor cores — no dequant overhead, ~1.5–2× faster wall-clock than QLoRA at the same config. Avoids 4-bit dequantization quality loss (small but non-zero on math reasoning). Simpler dep tree: no `bitsandbytes` install, no NF4 / double-quant flags, no `BitsAndBytesConfig`. Course compute (Colab Pro+) reliably provides A100; the L4 fallback was a hedge for compute we don't need.
+
+**Consequences:**
+- `notebooks/sft_train.ipynb`: removed `BitsAndBytesConfig`, swapped optimizer to `adamw_torch_fused`, dropped `bitsandbytes` from `%pip`.
+- `pipeline.md` Training config + Compute budget + Colab guardrails updated.
+- Quality comparison against any future QLoRA ablation must control for this difference.
+- On 80 GB A100, mb=2 / accum=8 is now feasible; on 40 GB stay at mb=1 / accum=16.
+
+**Details:** [sft/pipeline.md](../sft/pipeline.md) §"Training config".

@@ -6,7 +6,7 @@ The guiding principle is: train on fewer high-quality long reasoning traces befo
 
 ## Environment assumptions
 
-- **Compute:** single GPU on Colab. Target an A100 session (40 GB; 80 GB if available). L4 fallback is possible but should be treated as a smaller smoke or ablation run.
+- **Compute:** single GPU on Colab. **A100 only (40 GB or 80 GB).** Training is bf16 LoRA — no 4-bit fallback, no L4 path. If A100 is unavailable, abort the session.
 - **Persistence:** Google Drive at `/content/drive/MyDrive/CSE151B/` mirrors the repo layout used by `notebooks/dev.ipynb` and `notebooks/submission.ipynb`. `data/eval/` (holdout + watch sets), checkpoints, eval outputs, and corpus manifests live there so disconnects are recoverable.
 - **Workflow:** keep the notebook workflow: `notebooks/sft_data_prep.ipynb`, `notebooks/sft_train.ipynb`, `notebooks/sft_eval.ipynb`, and `notebooks/submission.ipynb`.
 - **Submission path:** final private inference remains model-only generation. No tool-augmented inference, no external APIs, no calculator loop.
@@ -38,7 +38,7 @@ The first run does not need to solve every failure mode. It needs to answer one 
 
 ### Expected outcome distribution
 
-Gut estimates anchored on similar QLoRA-on-thinking-model results. The Qwen3-4B-Thinking base is already RL-tuned for reasoning, so SFT has less low-hanging fruit than for a vanilla base.
+Gut estimates anchored on similar LoRA-on-thinking-model results. The Qwen3-4B-Thinking base is already RL-tuned for reasoning, so SFT has less low-hanging fruit than for a vanilla base.
 
 | Outcome | Probability | Overall Δ vs pub-002 |
 |---|---|---|
@@ -217,18 +217,17 @@ The manifest must record:
 
 ## Training config
 
-A100-tuned single-GPU QLoRA. Keep the first run conservative; the goal is signal, not maximum adapter capacity.
+A100-only single-GPU bf16 LoRA. No 4-bit path. Keep the first run conservative; the goal is signal, not maximum adapter capacity. Decision record: [D009](../log/decisions.md#d009--bf16-lora-replaces-qlora-for-sft-001-a100-only).
 
-- **Framework:** `unsloth` if smoke-tested with `Qwen/Qwen3-4B-Thinking-2507`; fallback to `trl.SFTTrainer + peft + bitsandbytes`.
-- **Quantization:** 4-bit base, NF4, double quantization.
+- **Framework:** `trl.SFTTrainer + peft` (no `bitsandbytes`).
+- **Precision:** **bf16 base + bf16 LoRA + bf16 compute on A100.** No quantization. Memory budget at 8k seq, mb=1, grad-ckpt: ~22–30 GB — fits A100 40 GB; A100 80 GB allows mb=2.
 - **LoRA:** rank 32, alpha 64, dropout 0.05.
 - **Targets:** `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, `down_proj`.
 - **Loss:** completion-only; mask prompt tokens.
-- **Optimizer:** paged AdamW 8-bit.
+- **Optimizer:** `adamw_torch_fused`.
 - **Learning rate:** `1e-5`.
 - **Schedule:** cosine decay, 3% warmup.
-- **Precision:** bf16 on A100.
-- **Sequence length:** 8192 on A100; 4096 only for L4 smoke runs.
+- **Sequence length:** 8192. A100 only — if Colab assigns L4, abort the session, do not downgrade.
 - **Batch:** micro-batch 1, grad accum 16. On 80 GB A100, try micro-batch 2 and grad accum 8.
 - **Epochs:** 1. Do not run a second epoch until eval proves no trace collapse.
 - **Checkpointing:** every 500 steps to Drive.
@@ -378,7 +377,7 @@ Budget for 2 attempts (sft-001 + one recovery cycle): **~14–16 hr A100**. Anyt
 ## Colab failure-mode guardrails
 
 - **Session disconnect mid-training:** checkpoints and eval JSONs go to Drive; rerun notebook from top and resume latest checkpoint.
-- **A100 unavailable:** run only smoke or small ablation on L4. Do not compare L4 4096-token results directly with A100 8192-token results.
+- **A100 unavailable:** abort the session. Do not attempt L4 — bf16 LoRA at 8k seq will OOM. Reconnect later.
 - **Drive I/O bottleneck:** checkpoint every 500 steps, not every 100.
 - **OOM:** drop rows above token cap; if needed lower sequence length only for smoke runs.
 - **HF Hub rate limits:** set `HF_TOKEN` in Colab secrets before pulling models/datasets.
@@ -419,16 +418,16 @@ Budget for 2 attempts (sft-001 + one recovery cycle): **~14–16 hr A100**. Anyt
 - [x] Build `data/sft_sources/numina_multi_blank_synth.jsonl` (1,500 rows; `multi-blank` subcommand). pub-002 multi-blank prompt; composed 2–4 parts (native single-boxed after Numina prep).
 - [x] Decontam supplements against `public.jsonl` / `private.jsonl` problem text.
 - [x] Merge → `data/sft_corpus_v2.jsonl` (18,000); `data/sft_corpus_v2_manifest.json` with per-source row counts and distributions.
-- [ ] Manual spot check 30 supplement rows (15 long-trace, 15 multi-blank).
+- [x] Manual spot check 30 supplement rows (15 long-trace, 15 multi-blank) in `notebooks/sft_data_prep.ipynb` — passed.
 - [x] Eval watch sets: Q4 long (30 rows) + multi-blank ≥3 (20 rows) — `scripts/build_eval_watch_sets.py`, `data/eval/watch_manifest.json`.
 
 ### Training
 
-- [x] Add `notebooks/sft_train.ipynb` (QLoRA smoke + full run, Drive checkpoints).
+- [x] Add `notebooks/sft_train.ipynb` (bf16 LoRA smoke + full run, A100 only, Drive checkpoints).
 - [ ] Smoke-test training for 50-100 steps on 200-500 row subset (must include long-trace + multi-blank rows).
 - [ ] Inspect 10 generated dev-slice samples — verify thinking schema intact, multi-blank format intact, MCQ letter format intact.
 - [ ] Run a quick dev eval if runtime allows.
-- [ ] Full A100 QLoRA run for 1 epoch on `sft_corpus_v2.jsonl`.
+- [ ] Full A100 bf16 LoRA run for 1 epoch on `sft_corpus_v2.jsonl`.
 - [ ] Save checkpoints every 500 steps.
 - [ ] Evaluate every 500-1000 steps with all new metrics (MCQ floor, Q4-long, multi-blank ≥3, `<think>` tag rate).
 - [ ] Apply stop rules and select best checkpoint.
