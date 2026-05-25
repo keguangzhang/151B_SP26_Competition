@@ -49,11 +49,16 @@ id,response
 | `starter_code_cse151b_comp.ipynb` | Official starter (repo root): setup, inference, public scoring |
 | `notebooks/dev.ipynb` | Local development / stratified dev slice |
 | `notebooks/sft_train.ipynb` | QLoRA SFT on `data/sft_corpus.jsonl` (smoke + full run; Drive checkpoints) |
-| `notebooks/sft_eval.ipynb` | SFT checkpoint eval on frozen `dev.jsonl` (LoRA + extended metrics) |
+| `notebooks/sft_eval.ipynb` | SFT checkpoint eval on frozen `data/eval/holdout.jsonl` (LoRA + extended metrics) |
 | `notebooks/submission.ipynb` | Full `private.jsonl` inference → `results/submission.csv` |
 | `judger.py` | Grading logic aligned with the competition extractors |
 | `utils.py` | Shared normalization/utilities for `judger.py` |
 | `data/public.jsonl` | Labeled development set |
+| `data/eval/holdout.jsonl` | Frozen stratified eval holdout from public (225 rows, seed 42) |
+| `data/eval/watch_manifest.json` | Frozen Q4-long (30 ids) and multi-blank ≥3 (20 ids) eval watch sets |
+| `scripts/build_eval_holdout.py` | Build holdout from `public.jsonl` |
+| `scripts/build_eval_watch_sets.py` | Build watch JSONLs + manifest from holdout |
+| `scripts/eval_watch.py` | Filter/score results by watch set name |
 | `data/private.jsonl` | Unlabeled test IDs for submission |
 | `results/` | Runtime outputs (e.g. JSONL predictions) |
 | `docs/README.md` | Docs index, current best scores, layout |

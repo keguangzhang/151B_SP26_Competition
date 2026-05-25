@@ -2,9 +2,11 @@
 
 Master table of inference and training runs. **Detailed notes:** [`runs/`](runs/). **Decisions:** [`decisions.md`](decisions.md).
 
-### Dev slice (`data/dev.jsonl`)
+### Eval holdout (`data/eval/holdout.jsonl`)
 
-Stratified dev slice, seed 42 — **112 rows** at 10% (`DEV_FRACTION=0.10`) or **225 rows** at 20%. See `notebooks/dev.ipynb`.
+Stratified holdout from public, seed 42 — **112 rows** at 10% or **225 rows** at 20% (canonical for SFT). Build: `scripts/build_eval_holdout.py`. Older runs logged as `data/dev.jsonl` (same sampling logic, renamed path).
+
+Watch sets for SFT monitoring: `data/eval/watch_q4_long.jsonl` (30), `data/eval/watch_multi_blank_ge3.jsonl` (20) — see `data/eval/watch_manifest.json`.
 
 | ID | Date | Eval set | N | Change (one line) | MCQ | Free-form | Overall | Δ overall | Artifacts | Status | Notes |
 |----|------|----------|---|-------------------|-----|-----------|---------|-----------|-----------|--------|-------|
@@ -34,7 +36,9 @@ Stratified dev slice, seed 42 — **112 rows** at 10% (`DEV_FRACTION=0.10`) or *
 |----|------|----------|---|-------------------|-----|-----------|---------|-----------|--------|-------|
 | sft-001 | — | — | — | Numina-only QLoRA (planned) | — | — | — | TBD | planned | [`sft/pipeline.md`](../sft/pipeline.md) |
 | sft-prep-001 | 2026-05-21 | — | 23,089 ready | Numina clean Step 2 + §5.2 audit | — | — | — | `data/sft_sources/numina_cot_clean_*` | done | [`sft/numina-clean-audit.md`](../sft/numina-clean-audit.md) |
-| sft-prep-002 | 2026-05-22 | — | 15,000 | Step 5 corpus mix (drop 426, 3× weak, seed 42) | — | — | — | `data/sft_corpus.jsonl`, `data/sft_corpus_manifest.json` | done | `scripts/build_sft_corpus.py` |
+| sft-prep-002 | 2026-05-22 | — | 15,000 | Step 5 corpus mix (drop 426, 3× weak, seed 42) | — | — | — | `data/sft_corpus.jsonl`, `data/sft_corpus_manifest.json` | done | `scripts/build_sft_corpus.py base` |
+| sft-prep-003 | 2026-05-24 | — | 18,000 | v2 supplements: 1.5k long-trace + 1.5k multi-blank → `sft_corpus_v2` | — | — | — | `data/sft_corpus_v2.jsonl`, `data/sft_corpus_v2_manifest.json`, `data/sft_sources/numina_{long_trace,multi_blank_synth}.jsonl` | done | `build_sft_corpus.py supplements`; interim long p95 4119 |
+| sft-prep-003b | 2026-05-24 | — | 3,000 long ready | §5.3 heap long pass + rebuild long-trace | — | — | — | `numina_cot_clean_ready_long.jsonl`, refreshed `numina_long_trace.jsonl` | done | `build_numina_ready_long.py`; long-trace p95 trace_chars 5594 (51 rows ≥6000) |
 | priv-001 | — | `private.jsonl` | — | Leaderboard submission | — | — | — | `results/submission.csv` | planned | `notebooks/submission.ipynb` |
 
 ---

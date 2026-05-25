@@ -7,7 +7,7 @@ The guiding principle is: train on fewer high-quality long reasoning traces befo
 ## Environment assumptions
 
 - **Compute:** single GPU on Colab. Target an A100 session (40 GB; 80 GB if available). L4 fallback is possible but should be treated as a smaller smoke or ablation run.
-- **Persistence:** Google Drive at `/content/drive/MyDrive/CSE151B/` mirrors the repo layout used by `notebooks/dev.ipynb` and `notebooks/submission.ipynb`. `data/dev.jsonl`, checkpoints, eval outputs, and corpus manifests live there so disconnects are recoverable.
+- **Persistence:** Google Drive at `/content/drive/MyDrive/CSE151B/` mirrors the repo layout used by `notebooks/dev.ipynb` and `notebooks/submission.ipynb`. `data/eval/` (holdout + watch sets), checkpoints, eval outputs, and corpus manifests live there so disconnects are recoverable.
 - **Workflow:** keep the notebook workflow: `notebooks/sft_data_prep.ipynb`, `notebooks/sft_train.ipynb`, `notebooks/sft_eval.ipynb`, and `notebooks/submission.ipynb`.
 - **Submission path:** final private inference remains model-only generation. No tool-augmented inference, no external APIs, no calculator loop.
 
@@ -15,15 +15,37 @@ The guiding principle is: train on fewer high-quality long reasoning traces befo
 
 ## Goal
 
-Lift unified accuracy from the current **52.66%** baseline (50.40% MCQ / 53.79% free-form) without collapsing Qwen3-Thinking's reasoning style.
+Lift unified accuracy from the current **61.90%** baseline (72.00% MCQ / 56.86% free-form, [pub-002](../log/experiments.md#pub-002)) without collapsing Qwen3-Thinking's reasoning style or regressing MCQ.
+
+**Target weaknesses** (from [`baseline-public-16k.md`](../analysis/baseline-public-16k.md), filtered to slices with tight enough N to trust):
+
+| Slice | N | Acc | Headroom |
+|---|--:|---:|---|
+| Q4 question length (≥435 chars) | 281 | 43.8% | largest single addressable bucket |
+| Multi-blank ≥6 blanks | 63 | ~34% | sharpest per-slice gap |
+| Geometry | 115 | 50.4% | only topic with clean weakness signal |
+| MCQ "think finished, wrong boxed" | 54 | reasoning failure | method-agnostic — needs better reasoning, not better prompts |
+
+Topic-level targeting beyond geometry is not statistically reliable: "Other" (581 / 1126 rows) is a heterogeneous catch-all, and small-n named topics (n ≤ 25) have 95% CI bands wider than their gap to overall accuracy.
 
 First checkpoint target:
 
-- **Primary:** no free-form regression beyond noise.
-- **Secondary:** overall gain on the frozen dev slice.
-- **Stretch:** +3 to +5 pp overall on full public after selecting the best checkpoint.
+- **Primary:** no MCQ regression beyond 3 pp on dev; no free-form regression beyond noise.
+- **Secondary:** overall gain on the frozen dev slice; per-slice movement on Q4 long-context and multi-blank ≥3 slices.
+- **Stretch:** +2 to +4 pp overall on full public after selecting the best checkpoint.
 
-The first run does not need to solve every failure mode. It needs to answer one question cleanly: **does high-quality Numina SFT improve the base model without trace collapse?**
+The first run does not need to solve every failure mode. It needs to answer one question cleanly: **does targeted Numina SFT improve the long-context and multi-blank slices without trace collapse or MCQ regression?**
+
+### Expected outcome distribution
+
+Gut estimates anchored on similar QLoRA-on-thinking-model results. The Qwen3-4B-Thinking base is already RL-tuned for reasoning, so SFT has less low-hanging fruit than for a vanilla base.
+
+| Outcome | Probability | Overall Δ vs pub-002 |
+|---|---|---|
+| Strong win | ~15% | +5 to +8 pp |
+| Modest win | ~35% | +2 to +4 pp |
+| Flat (within noise) | ~30% | −1 to +2 pp |
+| Regression | ~20% | −2 to −5 pp — keep pub-002, run recovery |
 
 ### Non-goals
 
@@ -47,32 +69,37 @@ Summary: mixed corpus had synthetic AGIEval/GaoKao traces, short MATH solutions,
 
 | Source | First-run decision | Reason |
 | --- | --- | --- |
-| `NuminaMath-CoT` | **Use as primary source** | Large, real math reasoning traces, already long enough for thinking-style SFT. |
+| `NuminaMath-CoT` (current 15k corpus) | **Primary base** | Real long math traces; already cleaned, schema-validated, decontam'd. |
+| `NuminaMath-CoT` long-trace subset (`trace_chars ≥ 6000`) | **Targeted supplement (~1.5k)** | Directly attacks Q4 long-context weakness; sample from existing `numina_cot_clean_ready.jsonl`. |
+| Synthetic multi-blank from Numina | **Targeted supplement (~1.5k)** | Numina problems with sequential `\boxed{a}, \boxed{b}` answers, or 2–3 related sub-questions composed into one multi-`[ANS]` prompt. Directly attacks the ≥6-blank weakness. |
 | `MATH train` original solutions | **Exclude from first run** | Solutions are too short; useful as problem source later, not as trace target now. |
 | `AGIEval-Math` | **Exclude from first run** | Current prepared responses are synthetic no-reasoning templates. |
 | `GaoKao-MCQ` | **Exclude from first run** | Mostly Chinese and tied to the same synthetic-response path. |
 | `OpenR1 / DeepSeek distill` | **Defer** | Possible hard-tail supplement later, but license and style compatibility are unresolved. |
-| Baseline self-distillation | **Defer to recovery phase** | Better after measuring whether Numina-only leaves format or MCQ gaps. |
+| Baseline self-distillation (MCQ) | **Defer to recovery phase** | Use pub-002 correct MCQ traces only if sft-001 regresses MCQ. MCQ is already 72%; don't touch in first run. |
 
 ### First corpus target
 
-Build:
+Existing build:
 
 ```text
-data/sft_sources/numina_cot_clean_ready.jsonl
+data/sft_sources/numina_cot_clean_ready.jsonl  ← 23,089 rows (clean Numina)
 data/sft_sources/numina_cot_clean_stats.json
 data/sft_sources/numina_cot_clean_rejects.jsonl
-data/sft_corpus.jsonl
+data/sft_corpus.jsonl                          ← 15,000 rows (current)
 data/sft_corpus_manifest.json
 ```
 
-Target size:
+**Revised target for sft-001:** ~18k rows total = current 15k Numina base + ~3k targeted supplement (long-trace + synthetic multi-blank). Build supplements as separate JSONL artifacts and concatenate at corpus-build time so source contribution is auditable.
 
-- **A100 40 GB:** 12k-18k examples after filters.
-- **A100 80 GB:** 18k-25k examples after filters.
-- **L4 fallback:** 3k-8k examples, treated as a smoke run only.
+```text
+data/sft_sources/numina_long_trace.jsonl        ← new (~1.5k, trace_chars ≥ 6000)
+data/sft_sources/numina_multi_blank_synth.jsonl ← new (~1.5k synthetic multi-blank)
+data/sft_corpus_v2.jsonl                        ← 18k merged
+data/sft_corpus_v2_manifest.json
+```
 
-Do not backfill missing rows from weak sources. If Numina filtering leaves fewer rows than expected, train the smaller clean corpus.
+A100 40 GB capacity holds 18k easily at 8k seq. Do not backfill from weak sources.
 
 ---
 
@@ -138,9 +165,39 @@ If more than 2 accepted rows fail the spot check, fix filters and rebuild.
 
 **2026-05-22 Step 5:** `scripts/build_sft_corpus.py` → 15,000-row `data/sft_corpus.jsonl` (dropped 426, 3× weak-topic weight, seed 42). Manifest: `data/sft_corpus_manifest.json`.
 
-### Step 5: final corpus
+### Step 5: build targeted supplement (new — 2026-05-24)
 
-For the first run, `data/sft_corpus.jsonl` is just a shuffled sample from `numina_cot_clean_ready.jsonl`.
+Two new builders extend `scripts/build_sft_corpus.py`:
+
+**5a. Long-trace supplement (`numina_long_trace.jsonl`, ~1.5k rows)**
+
+- Filter `numina_cot_clean_ready.jsonl` to `trace_chars ∈ [6000, 12000]`.
+- Bias toward geometry by keyword match (`triangle`, `polygon`, `angle`, `circle`, `quadrilateral`, `parallelogram`, etc.) — target ~30% geometry-flavored.
+- Reject diagram-dependent rows (Asymptote code blocks, "in the figure shown", "in the diagram"). Text-only model has no figure access.
+- Decontam against `public.jsonl` / `private.jsonl` problem text as in Step 3.
+
+**5b. Synthetic multi-blank supplement (`numina_multi_blank_synth.jsonl`, ~1.5k rows)**
+
+Two construction modes — both produce the inference-time `[ANS]` placeholder format:
+
+1. **Native multi-answer Numina rows** — where one Numina problem has multiple sub-answers in its trace (e.g., "find a, b, c such that..."), reformat the prompt to use `[ANS]` placeholders and the trace to end with `\boxed{a}, \boxed{b}, \boxed{c}`.
+2. **Composed sub-questions** — combine 2–3 related sub-questions from the same Numina problem (or paired problems with shared setup) into a single prompt; concatenate traces; emit comma-separated `\boxed{}`. Cap composed prompts at 4 blanks for first run; 6+ blanks deferred.
+
+Must use the **exact** multi-blank prompt template from `notebooks/full_public.ipynb` so training rows match inference rows byte-for-byte after `apply_chat_template`.
+
+**5c. Merge step**
+
+```python
+sft_corpus_v2 = shuffle(sft_corpus + numina_long_trace + numina_multi_blank_synth, seed=42)
+```
+
+Record per-source contribution in `data/sft_corpus_v2_manifest.json`: row counts, trace_chars distribution, blank-count distribution, geometry-keyword hit rate, source hashes.
+
+**Spot check:** sample 30 supplement rows manually — 15 long-trace, 15 multi-blank. Verify trace style is Qwen3-Thinking-compatible (long, exploratory, not Numina-template-shaped), verify multi-blank rows have the right `\boxed{a}, \boxed{b}` rhythm.
+
+### Step 6: final corpus
+
+For sft-001, `data/sft_corpus_v2.jsonl` is the merged shuffle from Step 5c.
 
 The manifest must record:
 
@@ -198,7 +255,9 @@ Use `notebooks/sft_eval.ipynb`. The eval path must match the final submission pa
 
 Required eval sets:
 
-- **Frozen dev slice:** `data/dev.jsonl`, 225 rows.
+- **Eval holdout:** `data/eval/holdout.jsonl`, 225 rows. Rebuild: `python scripts/build_eval_holdout.py --fraction 0.20 --seed 42`.
+- **Watch Q4 long:** `data/eval/watch_q4_long.jsonl` — **30** frozen rows (`question` length ≥ 435 chars; 3 MCQ / 27 free-form). IDs in `data/eval/watch_manifest.json` → `watch.q4_long.ids`.
+- **Watch multi-blank ≥3:** `data/eval/watch_multi_blank_ge3.jsonl` — **20** frozen rows (≥3 `[ANS]`). IDs → `watch.multi_blank_ge3.ids`. Rebuild watch: `python scripts/build_eval_watch_sets.py`.
 - **Full public holdout:** full `data/public.jsonl` after selecting a candidate checkpoint.
 - **Optional stress slice:** 20-50 hand-picked weak-topic / multi-blank examples for qualitative inspection only.
 
@@ -207,19 +266,23 @@ Metrics per checkpoint:
 | Metric | Why |
 | --- | --- |
 | Unified accuracy | Main score proxy. |
-| MCQ accuracy | Watch whether Numina-only accidentally helps or hurts MCQ. |
+| MCQ accuracy | **Hard regression watch** — Numina-heavy mix likely to pressure MCQ. |
 | Free-form accuracy | Primary expected gain area. |
-| Multi-blank free-form accuracy | Known weak sub-bucket. |
+| Q4 long-context accuracy | Direct watch on long-trace supplement. |
+| Multi-blank ≥3 accuracy | Direct watch on multi-blank supplement. |
 | `\boxed{}` emission rate | Format regression detector. |
+| Multi-blank `\boxed{}` count vs gold blanks | Multi-blank format integrity. |
 | Mean / median response length | Trace-collapse detector. |
+| `<think>` / `</think>` tag emission rate | Thinking-schema integrity detector. |
 | Empty or answer-only response rate | Thinking-style failure detector. |
-| Per-topic accuracy where labels exist | Regression watch. |
 
 Stop rules:
 
+- **MCQ dev accuracy drops more than 3 pp from pub-002 baseline (72%).** Halt and triage; Numina mix is destabilizing MCQ format.
 - Free-form dev accuracy drops more than 2 pp from base and response length also drops.
 - Mean response length drops more than 20% vs the baseline eval run.
-- `\boxed{}` emission rate drops below baseline.
+- `\boxed{}` emission rate drops below baseline, OR multi-blank rows emit fewer `\boxed{}` than gold blanks at >2× the pub-002 rate.
+- `<think>` opener/closer emission rate drops below 95% (schema breakage).
 - Two consecutive eval points show no improvement and qualitative samples look shorter.
 - Any checkpoint emits mostly answer-only completions.
 
@@ -227,7 +290,7 @@ Checkpoint selection:
 
 1. Pick best dev checkpoint that does not violate stop rules.
 2. Re-evaluate that checkpoint on full public.
-3. If full-public gain is under 2 pp or bucket regressions are severe, keep baseline for submission and treat SFT as failed experiment.
+3. **Decision rule:** ship only if overall public lift ≥ +2 pp **and** no slice regression > 3 pp (MCQ, FF, Q4-long, multi-blank ≥3). Otherwise keep pub-002 baseline for submission and route to recovery phase.
 
 ---
 
@@ -284,13 +347,33 @@ Stop SFT work until root cause is known. Likely causes:
 
 ## Distribution risks
 
-1. **Trace-style collapse.** Short or wrongly formatted targets can kill thinking behavior. Mitigation: exclude short MATH traces, validate `<think>` schema, track response length.
-2. **Format mismatch.** Training rows must match final `build_prompt(...)` and `apply_chat_template(...)` path. Mitigation: tokenized sample inspection before training.
-3. **Numina distribution skew.** Numina may overrepresent certain olympiad styles and underrepresent competition MCQ. Mitigation: first run is a baseline; add targeted data only after eval shows the gap.
-4. **Inline MCQ contamination.** Numina embeds some answer choices in problem text. Mitigation: reject inline MCQ for first run.
-5. **Public/private leakage.** Public remains eval-only. Mitigation: decontam against public/private question text before corpus write.
+Ranked by current likelihood given the targeted supplement + pub-002 floor.
+
+1. **MCQ regression from FF-heavy mix (most likely failure).** Numina + multi-blank synthetic supplement are both free-form. MCQ at 72% is the slice with most to lose. Mitigation: hard MCQ floor stop rule (−3 pp from pub-002); no MCQ data in sft-001; recovery phase has MCQ self-distillation if needed.
+2. **Trace-style perturbation.** Most insidious failure — model still reasons but in a Numina rhythm that subtly hurts. Hard to detect without qualitative inspection. Mitigation: 50-row spot check at best dev checkpoint; track `<think>` tag emission rate; conservative LR (`1e-5`).
+3. **Multi-blank format breakage from synthetic supplement.** If synthetic multi-blank rows don't match the inference template exactly, model learns a new format that disagrees with eval. Mitigation: build supplement rows through the **exact** `build_prompt + apply_chat_template` path used by pub-002; spot check tokenized output.
+4. **Trace-style collapse.** Short or wrongly formatted targets can kill thinking behavior. Mitigation: keep `trace_chars ≥ 2000` floor; exclude short MATH solutions; validate `<think>` schema.
+5. **Format mismatch.** Training rows must match final `build_prompt(...)` and `apply_chat_template(...)` path. Mitigation: tokenized sample inspection before training.
+6. **Numina distribution skew.** Olympiad-flavored proofs may not transfer to competition-style problems. Mitigation: targeted supplement biases toward long-context and multi-blank — the actually weak slices.
+7. **Inline MCQ contamination.** Numina embeds some answer choices in problem text. Mitigation: reject inline MCQ for first run.
+8. **Public/private leakage.** Public remains eval-only. Mitigation: decontam against public/private question text before corpus write — extend to supplement builders.
 
 ---
+
+## Compute budget
+
+Single A100-40GB Colab session.
+
+| Stage | Time |
+|---|---|
+| Targeted supplement build + spot check | 1–2 hr CPU |
+| Smoke train (200–500 rows, 50–100 steps) + 10-sample inspection | ~30 min |
+| Full SFT — 18k rows × 1 epoch × 8k seq, micro-batch 1 × accum 16 (~1.1k steps) | ~2–3 hr |
+| Mid-training dev evals (3–4 × ~10 min on 225-row dev) | ~40 min |
+| Best-checkpoint full public eval (1126 rows at 16k tokens) | ~2 hr |
+| **Total per attempt** | **~6–8 hr A100** |
+
+Budget for 2 attempts (sft-001 + one recovery cycle): **~14–16 hr A100**. Anything beyond that and the experiment has overrun its return-on-compute window.
 
 ## Colab failure-mode guardrails
 
@@ -308,7 +391,7 @@ Stop SFT work until root cause is known. Likely causes:
 ### Pre-flight
 
 - [x] Create `notebooks/sft_eval.ipynb` from `dev.ipynb` with LoRA adapter loading and extra metrics.
-- [x] Freeze `data/dev.jsonl` on Drive (`CSE151B/data/dev.jsonl`).
+- [x] Freeze `data/eval/holdout.jsonl` on Drive (`CSE151B/data/eval/holdout.jsonl`).
 - [x] Verify Qwen3-Thinking assistant schema with `apply_chat_template`.
 - [x] Record the schema decision in `notebooks/sft_data_prep.ipynb`.
 
@@ -328,15 +411,26 @@ Stop SFT work until root cause is known. Likely causes:
 - [x] Build `data/sft_corpus.jsonl` from clean Numina only (15k rows; `scripts/build_sft_corpus.py`).
 - [x] Write `data/sft_corpus_manifest.json`.
 
+### Targeted supplement (new — sft-001 prep)
+
+- [x] Build `data/sft_sources/numina_cot_clean_ready_long.jsonl` (3,000 rows; §5.3 heap top-25k raw length outside first-pass `source_id`s; only 53 wrapped `trace_chars ≥ 6000`).
+- [x] Rebuild `data/sft_sources/numina_long_trace.jsonl` from long pool (`long-trace --ready-path …_long.jsonl`; p95 trace_chars 5594).
+- [x] Re-merge `data/sft_corpus_v2.jsonl` (18,000 rows).
+- [x] Build `data/sft_sources/numina_multi_blank_synth.jsonl` (1,500 rows; `multi-blank` subcommand). pub-002 multi-blank prompt; composed 2–4 parts (native single-boxed after Numina prep).
+- [x] Decontam supplements against `public.jsonl` / `private.jsonl` problem text.
+- [x] Merge → `data/sft_corpus_v2.jsonl` (18,000); `data/sft_corpus_v2_manifest.json` with per-source row counts and distributions.
+- [ ] Manual spot check 30 supplement rows (15 long-trace, 15 multi-blank).
+- [x] Eval watch sets: Q4 long (30 rows) + multi-blank ≥3 (20 rows) — `scripts/build_eval_watch_sets.py`, `data/eval/watch_manifest.json`.
+
 ### Training
 
 - [x] Add `notebooks/sft_train.ipynb` (QLoRA smoke + full run, Drive checkpoints).
-- [ ] Smoke-test training for 50-100 steps.
-- [ ] Inspect 10 generated dev-slice samples.
+- [ ] Smoke-test training for 50-100 steps on 200-500 row subset (must include long-trace + multi-blank rows).
+- [ ] Inspect 10 generated dev-slice samples — verify thinking schema intact, multi-blank format intact, MCQ letter format intact.
 - [ ] Run a quick dev eval if runtime allows.
-- [ ] Full A100 QLoRA run for 1 epoch.
+- [ ] Full A100 QLoRA run for 1 epoch on `sft_corpus_v2.jsonl`.
 - [ ] Save checkpoints every 500 steps.
-- [ ] Evaluate every 500-1000 steps.
+- [ ] Evaluate every 500-1000 steps with all new metrics (MCQ floor, Q4-long, multi-blank ≥3, `<think>` tag rate).
 - [ ] Apply stop rules and select best checkpoint.
 
 ### Post-training
