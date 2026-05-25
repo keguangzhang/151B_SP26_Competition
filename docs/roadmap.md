@@ -4,131 +4,116 @@ Forward-looking ideas and priorities. **Measured results live in** [`log/experim
 
 ## Constraints
 
-See [`reference/constraints.md`](reference/constraints.md). Current shipped baseline: **52.66% overall** (50.40% MCQ / 53.79% free-form) at `max_tokens=8192` — [pub-001](log/experiments.md#pub-001).
+See [`reference/constraints.md`](reference/constraints.md). Current shipped baseline: **61.90% overall** (72.00% MCQ / 56.86% free-form) at `max_tokens=16384` with adaptive multi-blank prompt — [pub-002](log/experiments.md#pub-002).
 
-**Dominant MCQ bottleneck (8k): token truncation** — 84.4% of wrong MCQ were cut off mid-think (no `</think>`), leaving no answer to format. Only 2.7% of wrong MCQ finished thinking but failed to emit `\boxed{Letter}`. Finished responses score **69.5%** vs **3.8%** for truncated. See [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md) (2026-05-23 revision).
+**Dominant failure mode (16k): MCQ reasoning errors.** Truncation is mostly solved (6.9% of all responses, down from 25.6% at 8k). The wrong-MCQ distribution has inverted: **51.4%** of wrong MCQ are now "think finished, wrong `\boxed{Letter}`" — pure reasoning failures. Truncation accounts for only 41.0% of wrong MCQ (down from 84.4% at 8k). See [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md).
 
 | Group | N | Accuracy |
 |-------|--:|--------:|
-| Think finished (`</think>` present) | 838 | **69.5%** |
-| Truncated mid-think (no `</think>`) | 288 | **3.8%** |
-| MCQ truncation rate | 165/375 | **44.0%** |
+| Think finished (`</think>` present) | 1,048 | **66.3%** |
+| Truncated mid-think (no `</think>`) | 78 | **2.6%** |
+| MCQ truncation rate | 44/375 | **11.7%** |
+
+Secondary bottlenecks ranked by leverage (only slices with N large enough to trust):
+
+1. **Long questions** (Q4, ≥435 chars, n=281) score **43.8%** — 35 pp below short questions. Tightest signal.
+2. **High-blank-count free-form** (≥6 blanks, n=63) score **~34%** — multi-blank prompt is already applied; gap is reasoning.
+3. **Geometry** (n=115) at **50.4%** — only topic with clean weakness signal (95% CI ±9.1). "Other" (581 rows) is a heterogeneous catch-all and uninterpretable; small-n topics (number theory, limits, derivatives, linear algebra at n=12–23) have CI bands wider than their gap to overall — ignore them as targets.
+4. **MCQ reasoning errors** — 51.4% of wrong MCQ at 16k are "think finished, wrong `\boxed{Letter}`" (n=54). Method-agnostic finding: inference tricks can't fix these; needs SFT.
 
 ---
 
 ## Tier 1 — Inference-time fixes (no training)
 
-### 1.1 Lift `max_tokens` to 16,384 — **NEXT / highest priority**
+### 1.1 Lift `max_tokens` to 16,384 — ✅ shipped
 
-44% of MCQ responses truncate before writing any answer at 8k tokens. Doubling the budget directly unlocks answers the model has already reasoned toward.
+Doubled token budget unlocked +9.24 pp overall (+21.6 pp MCQ). Truncation dropped from 25.6% to 6.9%. See [pub-002](log/experiments.md#pub-002), [dev-007](log/runs/dev-007-max-tokens-16k.md), [dev-008](log/runs/dev-008-multi-blank-16k.md). 32k ablation rejected — [dev-009](log/runs/dev-009-max-tokens-32k.md): no lift, −0.89 pp overall.
 
-- **Expected:** MCQ truncation 44% → ~10–15%; MCQ accuracy ~70–78%; overall ~62–68%.
-- **Ceiling:** finished-response accuracy is ~69.5% overall; more tokens gets more responses there.
-- **Status:** dev validated — [dev-007](log/runs/dev-007-max-tokens-16k.md) (225 rows): MCQ **70.67%**, overall **60.00%** (+7.56 pp vs dev-006). Further confirmed in [dev-008](log/runs/dev-008-multi-blank-16k.md) at 10% dev (MCQ **78.38%** with same 16k budget). **32k check:** [dev-009](log/runs/dev-009-max-tokens-32k.md) — flat MCQ, overall −0.9 pp vs dev-008; **16k is sufficient** on A100 with `max_model_len=32768`. **Next:** ship combined `pub-002` (16k + §1.3 multi_blank).
+### 1.2 Thinking-efficiency prompting — rejected
 
-### 1.2 Thinking-efficiency prompting — **next if 16k not feasible**
+[dev-006](log/runs/dev-006-concise-prompt.md): MCQ 48.00% vs 50.40% baseline. Truncation was structural; prompt cannot fix it. Now superseded by §1.1.
 
-If GPU VRAM forces staying at 8k, prompt the model to reason more concisely (e.g., `/no_think` or a "be concise" system prompt directive). Goal: reduce median think-trace length so more responses finish within budget.
+### 1.3 Multi-blank free-form structure — ✅ shipped
 
-- **Expected:** modest gain; less reliable than more tokens. Estimate +3–8 pp MCQ.
-- **Risk:** concise reasoning may reduce accuracy for hard items that need long chains.
-- **Status:** done — [dev-006](log/runs/dev-006-concise-prompt.md) rejected; MCQ 48.00% vs 50.40% baseline (flat/worse). Truncation is structural; prompt can't fix it.
+Adaptive prompt (`\boxed{a}, \boxed{b}, …` for 2+ `[ANS]` questions) shipped in pub-002. Multi-blank residual gap (≥6 blanks at 34.0%) is now a reasoning problem, not a format problem.
 
-### 1.3 Multi-blank free-form structure — **dev validated**
+### 1.4 Self-consistency / majority vote — **promoted**
 
-Judger-compatible comma-separated `\boxed{a}, \boxed{b}, ...` prompt (labeled `Answer N:` format scored 0/20 in smoke and was discarded). Baseline was 47.8% multi-blank vs 63% single-blank.
+k=5–8 samples; vote on letters / canonicalized boxed answers. Now that truncation is solved, samples reach the answer reliably and reasoning variance is the dominant noise source — exactly what self-consistency exists to suppress.
 
-- **Expected:** +3–6 pp free-form.
-- **Status:** dev validated — [dev-008](log/runs/dev-008-multi-blank-16k.md) (112 rows, 16k): FF **58.67%** (+5.3 pp vs 10% baseline 16k†), multi-blank **50.00%** (+2.2 pp vs pub-001), overall **65.18%** (+4.5 pp). **Next:** combine with §1.1 in `pub-002` (16k + multi_blank).
+- **Expected:** +3–7 pp overall, larger on MCQ where reasoning errors now dominate.
+- **Cost:** 5× inference compute on the full eval set.
+- **Status:** open — strongest pure-inference lever post-pub-002. Consider running on MCQ-only first to bound cost.
 
-### 1.4 Self-consistency / majority vote
+### 1.5 MCQ-specific prompt + lower temperature — low priority
 
-k=5–8 samples; vote letters / canonicalized boxed answers. Most useful after truncation is resolved (truncated samples vote randomly).
+Format compliance is no longer the bottleneck. Only 7.6% of wrong MCQ at 16k are "finished, no `\boxed{Letter}`". Re-test only if a structured-output route is attempted alongside.
 
-- **Expected:** +3–7 pp overall on finished responses. **Status:** open — defer until §1.1 done.
+### 1.6 Constrained decoding for MCQ — deprioritized
 
-### 1.5 MCQ-specific prompt + lower temperature — **low priority**
-
-Retest on 8k baseline ([dev-002](log/runs/dev-002-mcq-prompt-temp.md), [D002](log/decisions.md#d002)). Low priority: format is only 2.7% of wrong MCQ; prompt changes won't move truncation.
-
-### 1.6 Constrained decoding for MCQ — **deprioritized**
-
-vLLM guided/structured generation on MCQ tail. Previously ranked #1 based on misdiagnosis of format compliance as the bottleneck. Updated analysis: only 5 responses (2.7% of wrong MCQ) finish thinking without a boxed letter — constrained decoding addresses a tiny slice.
-
-- **Status:** [dev-004](log/runs/dev-004-guided-decoding-10pct.md), [dev-005](log/runs/dev-005-guided-decoding-20pct.md); [D003](log/decisions.md#d003). Deprioritized — revisit only after §1.1.
+[dev-004](log/runs/dev-004-guided-decoding-10pct.md), [dev-005](log/runs/dev-005-guided-decoding-20pct.md), [D003](log/decisions.md#d003). Addresses a small slice (7.6% of wrong MCQ at 16k). Skip.
 
 ### 1.7 Length-aware free-form stop
 
 Soft commit / truncate after first complete `\boxed{}`. **Expected:** +1–3 pp free-form. **Status:** open.
 
-### 1.8 Re-audit truncation at 16k — **diagnostic, do first**
+### 1.8 Re-audit truncation at 16k — ✅ done (folded into [`baseline-public-16k.md`](analysis/baseline-public-16k.md))
 
-Replicate the [8k truncation analysis](analysis/baseline-public-8k.md) on dev-007/dev-008 artifacts. Quantify residual `</think>`-missing rate by question type (MCQ / single-blank / multi-blank). Cheap — pure post-hoc analysis on existing JSONL.
+Residual truncation is 6.9% overall (11.7% MCQ, 4.5% FF). Confirms §1.9 / §1.10 / §1.12 have shrinking returns; deprioritize all three relative to reasoning-quality interventions.
 
-- **Purpose:** decides whether §1.9 / §1.10 / §1.11 are worth pursuing, and whether a further 24k bump would pay off.
-- **Status:** open — recommended before pub-002.
+### 1.9 Multi-blank-specific token budget — deprioritized
 
-### 1.9 Multi-blank-specific token budget — **conditional on §1.8**
+Truncation rate on free-form is now only 4.5%. The multi-blank weakness at ≥6 blanks (34.0%) is dominated by reasoning, not budget — the multi-blank §6 data shows wrong responses average 18,151 chars, well within 16k budget. Expected lift ≤1–2 pp; skip unless §1.4 / §2 plateau.
 
-Multi-blank is now the worst slice ([dev-008](log/runs/dev-008-multi-blank-16k.md): **50.00%** vs 67.57% single-blank, 78.38% MCQ) and structurally needs longer chains. Route multi-blank questions to a larger budget (e.g., 24k) while keeping the rest at 16k.
+### 1.10 Retry-on-truncation — deprioritized
 
-- **Expected:** +2–5 pp multi-blank if §1.8 confirms residual truncation on this slice.
-- **Cost:** minor — per-question budget routing in the inference loop.
-- **Status:** open.
-
-### 1.10 Retry-on-truncation — **surgical self-consistency**
-
-If a response lacks `</think>` or emits fewer `\boxed{}` than the question has blanks, regenerate (new seed or higher budget). Attacks the residual truncation/format tail without paying §1.4's 5× cost across every question.
-
-- **Expected:** +1–4 pp overall depending on residual tail size from §1.8.
-- **Risk:** unbounded retry cost — cap retries at 1–2.
-- **Status:** open.
+Residual truncation tail is 78 rows (6.9%). Even perfect recovery caps the lift at ~2 pp overall, and retries risk re-truncating. **Status:** open but low priority.
 
 ### 1.11 Few-shot exemplar for multi-blank prompt
 
-Add one worked example (2-blank question → `\boxed{a}, \boxed{b}` response) to the multi-blank prompt. The labeled `Answer N:` smoke scored 0/20 — the format path is brittle; an exemplar locks in the shape.
+The adaptive multi-blank prompt is shipped and works. An exemplar might lock in shape on long-blank-count items (≥6 blanks at 34.0%). **Expected:** +1–3 pp on the multi-blank slice (small overall lift). **Status:** open — cheap, run before §1.4 if time permits.
 
-- **Expected:** +1–3 pp multi-blank.
-- **Cost:** prompt-only; isolated to multi-blank route.
-- **Status:** open.
+### 1.12 Budget-forced thinking cap — deprioritized
 
-### 1.13 Progressive-hint prompting (PHP) — **cheaper midpoint to self-consistency**
+Inject `</think>` at a soft threshold. With truncation at 6.9%, the addressable slice is small. Skip unless §1.4 plateaus.
 
-Two-pass: run #1 produces a tentative answer; run #2 is re-prompted with "your previous attempt was X, verify or revise." Plays well with thinking models (pass 2 reasons against an anchor) and costs 2× instead of self-consistency's 5×.
+### 1.13 Progressive-hint prompting (PHP) — **promoted**
 
-- **Expected:** +2–4 pp overall; sits between §1.10 retry (1–2×) and §1.4 self-consistency k=5 (5×) on the cost/lift curve.
-- **Risk:** pass 2 can anchor on a wrong pass-1 answer; mitigate with a neutral re-prompt ("reconsider carefully") rather than affirming the prior answer.
-- **Status:** open — test after §1.8 confirms truncation is no longer the dominant failure.
+Two-pass: run #1 produces tentative answer; run #2 re-prompts with "your previous attempt was X, verify or revise." Directly attacks the new dominant failure (reasoning errors that survive a single pass).
 
-### 1.12 Budget-forced thinking cap
-
-Inject `</think>` at a soft token threshold so remaining budget goes to the answer rather than running out mid-trace. Qwen3-Thinking responds to this pattern. Directly addresses "ran out mid-think" without raising `max_tokens`.
-
-- **Expected:** +1–3 pp on the truncation tail.
-- **Risk:** cutting hard problems short — tune the threshold on dev.
-- **Status:** open.
+- **Expected:** +2–4 pp overall; 2× compute (vs 5× for §1.4 self-consistency).
+- **Risk:** pass 2 may anchor on a wrong pass-1 answer — use neutral re-prompt.
+- **Status:** open — cheapest reasoning-error lever after SFT.
 
 ---
 
-## Tier 2 — Supervised fine-tuning
+## Tier 2 — Supervised fine-tuning — **next highest-leverage**
 
-Active plan: [`sft/pipeline.md`](sft/pipeline.md). First run: Numina-only QLoRA — [D004](log/decisions.md#d004).
+Active plan: [`sft/pipeline.md`](sft/pipeline.md). Numina corpus prepared ([`sft-prep-002`](log/experiments.md#sft-prep-002): 15,000 rows, mix locked).
 
-### 2.1 Data sources
+### 2.1 Why now
 
-Numina primary; defer AGIEval/GaoKao/short MATH; MCQ-heavy mix later if Numina run succeeds.
+MCQ reasoning errors (51.4% of wrong MCQ) and long-question failures (Q4 at 43.8%) are both reasoning-quality problems that inference tricks cannot move. SFT on Numina hard problems targets both simultaneously:
 
-### 2.2 QLoRA on single GPU
+- Hard MCQ on geometry / sequences / "other" — 22–25% error rate on finished-boxed.
+- Long-context problems — Q4 mean question length 498 chars.
+- High-blank-count free-form — same reasoning-chain quality gap.
 
-`unsloth` / `trl` + `peft`; eval each epoch on held-out public slice.
+### 2.2 Data sources
 
-### 2.3 Avoid free-form regression
+Numina primary ([`sft/numina-clean-audit.md`](sft/numina-clean-audit.md)). Defer AGIEval / GaoKao. If sft-001 succeeds, consider MCQ-heavy supplement in sft-002.
 
-Long-CoT mix, `loss_on_response_only`, early stop on FF plateau.
+### 2.3 QLoRA on single GPU
 
-### 2.4 Format-only mini-SFT
+`unsloth` / `trl` + `peft`; eval each epoch on held-out public slice. See [`sft/pipeline.md`](sft/pipeline.md).
 
-If §1.1 leaves gap after inference experiments.
+### 2.4 Avoid free-form regression
+
+Long-CoT mix, `loss_on_response_only`, early stop on FF plateau. FF baseline 56.86% is the floor — don't ship regressions there.
+
+### 2.5 Format-only mini-SFT
+
+Skip unless §2 (full SFT) leaves a residual format gap.
 
 ---
 
@@ -138,24 +123,41 @@ GRPO/DPO with `judger` reward — after SFT plateaus. See original tier detail i
 
 ---
 
-## Tier 4 — Targeted weaknesses
+## Tier 4 — Targeted weaknesses (16k baselines)
 
-Topic gaps from [pub-001 analysis](analysis/baseline-public-8k.md): number theory (~30%), sequences (~35%), geometry (~36%). Few-shot routing or topic-weighted SFT mix.
+Topic counts and 95% Wald CIs from `data/full_public_16k_topics.json`. **Caveat:** "Other" is 51.6% of the dataset (581 / 1126) — a heterogeneous catch-all, not a coherent topic. Most named topics have n ≤ 25 with CI bands wider than the gap to the overall mean (61.9%); their accuracy numbers are noise.
 
-| Topic | Count | Baseline acc (8k) |
-|-------|------:|------------------:|
-| Number theory | 23 | **30.4%** |
-| Sequences / recurrences | 75 | **34.7%** |
-| Geometry | 115 | **35.6%** |
-| Integration | 55 | **74.5%** |
+| Topic | n | Acc | 95% CI ± | Signal |
+|-------|--:|----:|---------:|--------|
+| other | 581 | 62.1% | ±3.9 | uninterpretable — catch-all |
+| polynomials/algebra | 146 | 63.7% | ±7.8 | near overall — no gap |
+| **geometry** | 115 | **50.4%** | ±9.1 | **real weakness — only topic with clean signal** |
+| probability/stats | 82 | 58.5% | ±10.7 | within noise |
+| sequences/recurrences | 75 | 58.7% | ±11.1 | within noise |
+| integration | 55 | 87.3% | ±8.8 | real strength |
+| linear algebra | 23 | 60.9% | ±19.9 | noise |
+| number theory | 23 | 56.5% | ±20.3 | noise |
+| limits | 14 | 57.1% | ±25.9 | noise |
+| derivatives | 12 | 83.3% | ±21.1 | noise |
+
+**Actionable signal for SFT mix** (slices with tight enough N to trust):
+
+| Slice | n | Acc | Source |
+|---|--:|---:|---|
+| Q4 question length (≥435 chars) | 281 | **43.8%** | §4 of 16k analysis |
+| Multi-blank ≥6 blanks | 63 | **~34%** | §3 of 16k analysis |
+| Geometry | 115 | **50.4%** | this table |
+| MCQ "think finished, wrong boxed" | 54 | reasoning failures | §1 of 16k analysis |
+
+Strategy: oversample **long-context** and **multi-blank** problems in the Numina mix; weight geometry; ignore the small-n topic differentials and "Other" entirely.
 
 ---
 
 ## Tier 5 — Deployment / capacity
 
-### 5.1 BF16 instead of INT8
+### 5.1 BF16 instead of INT8 — ✅ shipped (in pub-002)
 
-**Expected:** +1–3 pp if VRAM allows. **Status:** open.
+pub-002 already runs `dtype="bfloat16"` on A100 (see `notebooks/full_public.ipynb` and the vLLM init log). The starter L4 INT8 path was only used for pub-001. The `pub-001 → pub-002` delta therefore conflates three changes: 8k→16k tokens, starter→adaptive multi-blank prompt, and L4 INT8 → A100 bf16. dev-007 (bf16, 16k, baseline prompts, 20% dev) hit 60.00% overall, so most of the +9.24 pp lift is attributable to tokens, but precision contribution is not separately measured.
 
 ### 5.2 Speculative decoding
 
@@ -165,29 +167,27 @@ Throughput for self-consistency only.
 
 ## Suggested execution order
 
-> Priority order revised 2026-05-23: token truncation (not format) is the dominant failure. See [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md).
+> Priority order revised 2026-05-24 after pub-002. Truncation is solved; reasoning errors and long-question / high-blank failures are the new bottlenecks. See [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md).
 
 | Order | Direction | Expected gain | Cost | Status |
 |-------|-----------|--------------|-----:|--------|
-| — | 8k baseline | — | — | ✅ [pub-001](log/experiments.md#pub-001) |
-| 1 | §1.8 Re-audit truncation at 16k | diagnostic | <1 hr | **do first** — informs §1.9–1.12 |
-| 2 | §1.1 + §1.3 combined → **pub-002** (16k + multi_blank) | +12–18 pp overall | hours | next — dev validated [dev-008](log/runs/dev-008-multi-blank-16k.md) |
-| 3 | §1.9 Multi-blank 24k budget routing | +2–5 pp multi-blank | hours | conditional on §1.8 |
-| 4 | §1.11 Multi-blank few-shot exemplar | +1–3 pp multi-blank | hour | open |
-| 5 | §1.10 Retry-on-truncation | +1–4 pp overall | hours | conditional on §1.8 |
-| 6 | §1.12 Budget-forced thinking cap | +1–3 pp | hours | conditional on §1.8 |
-| 7 | §1.13 Progressive-hint prompting (2-pass) | +2–4 pp overall | hours | open — cheaper midpoint to §1.4 |
-| 8 | §1.2 Thinking-efficiency prompt (if 16k constrained) | +3–8 pp MCQ | hours | ~~rejected~~ [dev-006](log/runs/dev-006-concise-prompt.md) |
-| 9 | §1.4 Self-consistency k=5 | +3–7 pp overall | day | open — after pub-002 |
-| 10 | §5.1 INT8 → BF16 | +1–3 pp | hour | open |
-| 11 | §2 Numina QLoRA SFT | unknown | 1–2 days | [sft-001](log/experiments.md) planned |
-| 12 | §2.4 Format mini-SFT | conditional | half day | conditional |
-| 13 | §1.7 Length-aware FF stop | +1–3 pp FF | hours | open |
-| 14 | §4 Topic few-shot / weighted mix | unknown | day | open |
-| 15 | §1.6 Guided decoding | +0–2 pp MCQ | hours | deprioritized |
-| 16 | §3 GRPO | unknown | 2–4 days | open |
+| — | 8k baseline | — | — | ✅ [pub-001](log/experiments.md#pub-001) — 52.66% |
+| — | 16k + adaptive multi-blank | +9.24 pp | done | ✅ [pub-002](log/experiments.md#pub-002) — **61.90%** |
+| **1** | **§2 Numina QLoRA SFT → sft-001** | **unknown (target +3–8 pp)** | **1–2 days** | **next** — corpus ready, attacks dominant reasoning bottleneck |
+| 2 | §1.13 Progressive-hint prompting (2-pass) | +2–4 pp | 2× compute (~4 hr Colab) | open — cheapest reasoning-error lever |
+| 3 | §1.4 Self-consistency k=5 | +3–7 pp claimed; lift constrained — MCQ already 72%, FF voting needs symbolic canonicalization | 5× compute (~10 hr Colab) | open but **questionable ROI** at current MCQ ceiling |
+| 4 | §1.7 Length-aware FF stop | +1–3 pp FF | hours | open |
+| 5 | §1.11 Multi-blank few-shot exemplar | ≤1 pp overall (analysis says gap is reasoning, not format) | hour | low-priority — likely noise |
+| 6 | §4 Topic few-shot / weighted SFT mix | unknown | day | open — fold into sft-002 |
+| 7 | §1.9 Multi-blank 24k routing | ≤2 pp | hours | deprioritized — truncation tail too small |
+| 8 | §1.10 Retry-on-truncation | ≤2 pp | hours | deprioritized |
+| 9 | §1.12 Budget-forced thinking cap | ≤2 pp | hours | deprioritized |
+| 10 | §1.6 Guided decoding | ≤2 pp MCQ | hours | deprioritized |
+| 11 | §3 GRPO | unknown | 2–4 days | open — after SFT plateaus |
 
-Re-measure on full `public.jsonl` after each shipped inference change; dev Δ &lt; ~3 pp is noise at n=112.
+> §5.1 (BF16) is already shipped in pub-002 — removed from order.
+
+Re-measure on full `public.jsonl` after each shipped change; dev Δ < ~3 pp is noise at n=112.
 
 ---
 
@@ -197,3 +197,4 @@ Re-measure on full `public.jsonl` after each shipped inference change; dev Δ &l
 - `guided_decoding` on Colab L4 image ([`infra/vllm-colab-l4.md`](infra/vllm-colab-l4.md)).
 - Private MCQ option-count distribution vs public.
 - GPU-hour budget for RL feasibility.
+- Self-consistency vote scheme for free-form (canonicalize numeric / symbolic answers before voting).

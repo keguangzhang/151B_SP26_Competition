@@ -6,21 +6,21 @@ Start here for project status. Deep dives live in subfolders; **do not duplicate
 
 | Setting | Value |
 |--------|--------|
-| Model | `Qwen/Qwen3-4B-Thinking-2507` (INT8, vLLM) |
+| Model | `Qwen/Qwen3-4B-Thinking-2507` (bfloat16, vLLM) |
 | Eval | `data/public.jsonl` — 1,126 rows |
-| `max_tokens` | **8192** |
+| `max_tokens` | **16384** |
 | Decoding | `temperature=0.6`, `top_p=0.95`, `top_k=20` |
-| **Overall** | **52.66%** (593 / 1,126) |
-| MCQ | **50.40%** (189 / 375) |
-| Free-form | **53.79%** (404 / 751) |
+| **Overall** | **61.90%** (697 / 1,126) |
+| MCQ | **72.00%** (270 / 375) |
+| Free-form | **56.86%** (427 / 751) |
 
-Registry row: [`pub-001`](log/experiments.md#pub-001). Analysis: [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md).
+Registry row: [`pub-002`](log/experiments.md#pub-002). Analysis: [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md).
 
 ## Active work
 
-- **Inference (highest priority):** `max_tokens=16384` full-public run (`pub-002`) — dev slice validated at 60% overall / 70.7% MCQ ([dev-007](log/runs/dev-007-max-tokens-16k.md)); 32k ablation flat ([dev-009](log/runs/dev-009-max-tokens-32k.md)). See [`roadmap.md`](roadmap.md) §1.1.
+- **Inference:** pub-002 (16k + adaptive multi-blank prompt) shipped at 61.90% overall / 72.00% MCQ. Reasoning errors now dominate wrong MCQ (51.4%); truncation mostly solved.
 - **SFT:** Numina-only QLoRA first run — see [`sft/pipeline.md`](sft/pipeline.md), data prep in `notebooks/sft_data_prep.ipynb`.
-- **Analysis revised 2026-05-23:** token truncation (not format) is dominant MCQ failure. See [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md).
+- **Analysis 2026-05-24:** 16k failure-mode shift — truncation 84% → 41% of wrong MCQ; reasoning errors now 51.4%. See [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md).
 
 ## Quick links
 
@@ -32,6 +32,7 @@ Registry row: [`pub-001`](log/experiments.md#pub-001). Analysis: [`analysis/base
 | Final report skeleton | [`report-outline.md`](report-outline.md) |
 | Ideas & priorities (no numbers) | [`roadmap.md`](roadmap.md) |
 | 8k public error analysis | [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md) |
+| 16k public error analysis | [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md) |
 | SFT plan / data spec / QA | [`sft/`](sft/) |
 | Numina clean corpus audit (2026-05-21) | [`sft/numina-clean-audit.md`](sft/numina-clean-audit.md) |
 | Colab + vLLM install / env | [`infra/vllm-colab-l4.md`](infra/vllm-colab-l4.md) |
