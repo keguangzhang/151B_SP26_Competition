@@ -1,6 +1,11 @@
 .claude
 .venv
 results
-data
+data/*
+!data/eval/
+!data/eval/holdout.jsonl
+!data/eval/watch_q4_long.jsonl
+!data/eval/watch_multi_blank_ge3.jsonl
+!data/eval/watch_manifest.json
 __pycache__
 LICENSE

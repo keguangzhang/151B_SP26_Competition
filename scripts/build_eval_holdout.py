@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build frozen stratified dev slice from data/public.jsonl → data/dev.jsonl."""
+"""Build frozen stratified eval holdout from data/public.jsonl → data/eval/holdout.jsonl."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
 DEFAULT_PUBLIC = REPO / "data" / "public.jsonl"
-DEFAULT_DEV = REPO / "data" / "dev.jsonl"
+DEFAULT_HOLDOUT = REPO / "data" / "eval" / "holdout.jsonl"
 DEFAULT_FRACTION = 0.20
 DEFAULT_SEED = 42
 
@@ -28,9 +28,9 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def build_dev_jsonl(
+def build_eval_holdout(
     public_path: Path,
-    dev_path: Path,
+    holdout_path: Path,
     fraction: float,
     seed: int,
 ) -> tuple[int, int, int, int, int, int]:
@@ -50,19 +50,26 @@ def build_dev_jsonl(
         rng.shuffle(idx)
         return [items[i] for i in idx[:k]]
 
-    dev_mcq = sample_frac(mcq)
-    dev_free = sample_frac(free)
-    dev_rows = dev_mcq + dev_free
-    dev_rows.sort(key=lambda r: r.get("id", 0))
+    holdout_mcq = sample_frac(mcq)
+    holdout_free = sample_frac(free)
+    holdout_rows = holdout_mcq + holdout_free
+    holdout_rows.sort(key=lambda r: r.get("id", 0))
 
-    write_jsonl(dev_path, dev_rows)
-    return len(dev_rows), len(dev_mcq), len(mcq), len(dev_free), len(free), len(all_rows)
+    write_jsonl(holdout_path, holdout_rows)
+    return (
+        len(holdout_rows),
+        len(holdout_mcq),
+        len(mcq),
+        len(holdout_free),
+        len(free),
+        len(all_rows),
+    )
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--public", type=Path, default=DEFAULT_PUBLIC, help="Labeled public JSONL")
-    p.add_argument("--out", type=Path, default=DEFAULT_DEV, help="Output dev JSONL")
+    p.add_argument("--out", type=Path, default=DEFAULT_HOLDOUT, help="Output holdout JSONL")
     p.add_argument(
         "--fraction",
         type=float,
@@ -70,7 +77,7 @@ def main() -> None:
         help="Fraction per stratum (MCQ and free-form); default 0.20 → 225 rows",
     )
     p.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    p.add_argument("--force", action="store_true", help="Overwrite existing dev file")
+    p.add_argument("--force", action="store_true", help="Overwrite existing holdout file")
     args = p.parse_args()
 
     if not args.public.is_file():
@@ -80,11 +87,11 @@ def main() -> None:
         print(f"Exists: {args.out} (use --force to rebuild)")
         return
 
-    n_dev, n_mcq, n_mcq_all, n_free, n_free_all, n_public = build_dev_jsonl(
+    n_holdout, n_mcq, n_mcq_all, n_free, n_free_all, n_public = build_eval_holdout(
         args.public, args.out, args.fraction, args.seed
     )
-    print(f"Wrote {n_dev} rows to {args.out}")
-    print(f"  MCQ in dev: {n_mcq} / {n_mcq_all}   Free-form in dev: {n_free} / {n_free_all}")
+    print(f"Wrote {n_holdout} rows to {args.out}")
+    print(f"  MCQ in holdout: {n_mcq} / {n_mcq_all}   Free-form: {n_free} / {n_free_all}")
     print(f"  Public total: {n_public}")
 
 
