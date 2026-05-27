@@ -180,6 +180,6 @@ Append-only record of choices that matter for the final report. Template: **Cont
 
 **Rationale:** Overall **64.44%** on holdout_20p is **~0.7 pp below** [dev-008](runs/dev-008-multi-blank-16k.md) (65.18% on 112 rows, same prompt, no LoRA) and matches the **~64–65%** projection from dev-007 + multi_blank on 20% — i.e. **flat** per [pipeline decision gate](../sft/pipeline.md#phase-1-1k-probe-sft-002a). No stop-rule violations (MCQ 77.33%, length +6.6%, boxed emission 94.67%), but watch slices **Q4 long** and **multi-blank ≥3** stayed at **40%**. Training ran **1 epoch** (pipeline had planned 2); `final_adapter` may not be the best checkpoint.
 
-**Consequences:** Do not open sft-002b on this result alone. Next: base-vs-LoRA A/B on holdout_20p; consider epoch-2 or `checkpoint-*` eval; if still flat → sft-003 or Numina fallback (sft-001). Optional SC K=5 on `holdout_10p` per modest-win path.
+**Consequences:** Do not open sft-002b on this result alone. Base-vs-LoRA A/B on holdout_20p: [sft-eval-001](runs/sft-eval-001-baseline-holdout-20p.md) **0.00 pp** vs sft-002a (same 225 ids). Next: epoch-2 or `checkpoint-*` eval; if still flat → sft-003 or Numina fallback (sft-001). Optional SC K=5 on `holdout_10p` per modest-win path.
 
 **Experiment:** [sft-002a](experiments.md#sft-002a)
