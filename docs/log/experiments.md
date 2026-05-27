@@ -38,6 +38,7 @@ Watch sets for SFT monitoring: `data/eval/watch_q4_long.jsonl` (30), `data/eval/
 
 | ID | Date | Eval set | N | Change (one line) | MCQ | Free-form | Overall | Artifacts | Status | Notes |
 |----|------|----------|---|-------------------|-----|-----------|---------|-----------|--------|-------|
+| [sft-002a](runs/sft-002a-openr1-1k.md) | 2026-05-26 | `holdout_20p.jsonl` | 225 | OpenR1 1k bf16 LoRA (`openr1_1k` × 1 epoch); eval `final_adapter`, `multi_blank` 16k | **77.33%** | **58.00%** | **64.44%** | **~flat** vs dev-008 (−0.7 pp on 10% slice); +2.5 pp vs pub-002† | Drive: `results/sft_eval/openr1_1k/eval_0.*` | **flat** | Watch: Q4 40%, MB≥3 40%; MB overall 53.66%; no stop-rule triggers → [D010](decisions.md#d010--sft-002a-openr1-1k-flat--do-not-scale-to-5k-yet) |
 | sft-001 | — | — | — | Numina-only QLoRA (planned) | — | — | — | TBD | planned | [`sft/pipeline.md`](../sft/pipeline.md) |
 | sft-prep-001 | 2026-05-21 | — | 23,089 ready | Numina clean Step 2 + §5.2 audit | — | — | — | `data/sft_sources/numina_cot_clean_*` | done | [`sft/numina-clean-audit.md`](../sft/numina-clean-audit.md) |
 | sft-prep-002 | 2026-05-22 | — | 15,000 | Step 5 corpus mix (drop 426, 3× weak, seed 42) | — | — | — | `data/sft_corpus.jsonl`, `data/sft_corpus_manifest.json` | done | `scripts/build_sft_corpus.py base` |
