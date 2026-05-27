@@ -165,3 +165,21 @@ Append-only record of choices that matter for the final report. Template: **Cont
 - On 80 GB A100, mb=2 / accum=8 is now feasible; on 40 GB stay at mb=1 / accum=16.
 
 **Details:** [sft/pipeline.md](../sft/pipeline.md) §"Training config".
+
+---
+
+## D010 — sft-002a OpenR1 1k flat — do not scale to 5k yet
+
+**Date:** 2026-05-26
+
+**Context:** First probe of R1-distilled traces ([sft-002a](runs/sft-002a-openr1-1k.md)): 1k OpenR1-Math rows, bf16 LoRA r=32, 1 epoch (~63 steps), eval on frozen `holdout_20p` (225 rows) with shipped inference stack (`multi_blank`, 16k).
+
+**Options:** (A) scale to sft-002b (5k stratified) (B) treat as flat and pivot to sft-003 / iterate training (C) run SC K=5 on adapter before abandoning
+
+**Decision:** **B** for scale-up; **C** optional before pivot.
+
+**Rationale:** Overall **64.44%** on holdout_20p is **~0.7 pp below** [dev-008](runs/dev-008-multi-blank-16k.md) (65.18% on 112 rows, same prompt, no LoRA) and matches the **~64–65%** projection from dev-007 + multi_blank on 20% — i.e. **flat** per [pipeline decision gate](../sft/pipeline.md#phase-1-1k-probe-sft-002a). No stop-rule violations (MCQ 77.33%, length +6.6%, boxed emission 94.67%), but watch slices **Q4 long** and **multi-blank ≥3** stayed at **40%**. Training ran **1 epoch** (pipeline had planned 2); `final_adapter` may not be the best checkpoint.
+
+**Consequences:** Do not open sft-002b on this result alone. Next: base-vs-LoRA A/B on holdout_20p; consider epoch-2 or `checkpoint-*` eval; if still flat → sft-003 or Numina fallback (sft-001). Optional SC K=5 on `holdout_10p` per modest-win path.
+
+**Experiment:** [sft-002a](experiments.md#sft-002a)

@@ -531,10 +531,10 @@ Same as sft-002a: **~1.5–2 hr A100**.
 - [ ] Spot check 10 rows manually.
 - [ ] Smoke train 50 steps on 200-row subset; inspect 10 generations.
 - [ ] Full SFT 1k × 2 epochs (~250 update steps), checkpoint every 200 steps.
-- [ ] Eval on `holdout_20p` + watch sets per epoch.
-- [ ] Apply stop rules; pick best checkpoint.
-- [ ] Decision gate: strong / modest / flat / regression → route to next step.
-- [ ] Log to `docs/log/runs/sft-002a-openr1-1k.md`; row in `docs/log/experiments.md`.
+- [x] Eval on `holdout_20p` + watch sets per epoch — **64.44% overall** (`final_adapter`, 1 epoch); see [sft-002a](../log/runs/sft-002a-openr1-1k.md).
+- [x] Apply stop rules; pick best checkpoint — no triggers; only `final_adapter` @ 1 epoch evaluated.
+- [x] Decision gate: **flat** → do not scale to sft-002b yet ([D010](../log/decisions.md#d010--sft-002a-openr1-1k-flat--do-not-scale-to-5k-yet)).
+- [x] Log to `docs/log/runs/sft-002a-openr1-1k.md`; row in `docs/log/experiments.md`.
 
 ### sft-002b — OpenR1 5k stratified (if sft-002a passes)
 

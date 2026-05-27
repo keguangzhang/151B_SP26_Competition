@@ -19,7 +19,7 @@ Registry row: [`pub-002`](log/experiments.md#pub-002). Analysis: [`analysis/base
 ## Active work
 
 - **Inference:** pub-002 (16k + adaptive multi-blank prompt) shipped at 61.90% overall / 72.00% MCQ. Reasoning errors now dominate wrong MCQ (51.4%); truncation mostly solved.
-- **SFT:** Numina-only QLoRA first run — see [`sft/pipeline.md`](sft/pipeline.md), data prep in `notebooks/sft_data_prep.ipynb`.
+- **SFT:** [sft-002a](log/runs/sft-002a-openr1-1k.md) OpenR1 1k probe **flat** on holdout_20p (64.44%); do not scale to 5k yet — see [`sft/pipeline.md`](sft/pipeline.md).
 - **Analysis 2026-05-24:** 16k failure-mode shift — truncation 84% → 41% of wrong MCQ; reasoning errors now 51.4%. See [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md).
 
 ## Quick links
