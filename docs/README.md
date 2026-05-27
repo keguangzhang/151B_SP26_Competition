@@ -31,6 +31,7 @@ Registry row: [`pub-002`](log/experiments.md#pub-002). Analysis: [`analysis/base
 | Why we chose X | [`log/decisions.md`](log/decisions.md) |
 | Final report skeleton | [`report-outline.md`](report-outline.md) |
 | Ideas & priorities (no numbers) | [`roadmap.md`](roadmap.md) |
+| External-evidence technique survey (2026-05-24) | [`research/2026-05-24-improvement-techniques-survey.md`](research/2026-05-24-improvement-techniques-survey.md) |
 | 8k public error analysis | [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md) |
 | 16k public error analysis | [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md) |
 | SFT plan / data spec / QA | [`sft/`](sft/) |
@@ -51,6 +52,7 @@ docs/
     decisions.md
     runs/                ← dated experiment notes
   analysis/
+  research/             ← external-evidence technique surveys (dated)
   sft/
   infra/
   reference/
