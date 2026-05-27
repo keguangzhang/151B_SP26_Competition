@@ -52,6 +52,7 @@ Prior smoke runs: [dev-008-baseline-smoke](dev-008-baseline-smoke.md), [dev-008-
 ## Follow-up
 
 - **32k ablation:** [dev-009](dev-009-max-tokens-32k.md) — no lift vs this run; stay at 16k ([D008](../decisions.md#d008--32k-max_tokens-rejected-stay-at-16k)).
+- **Budget forcing:** [dev-010-bf](dev-010-bf-budget-forcing.md) — FF-biased `Wait` + baseline prompt; **identical** metrics on same 112-row slice (no incremental lift vs multi_blank).
 - Optional: register 10% baseline 16k as separate run for clean A/B on same slice.
 - Run full public with multi_blank + 16k before shipping §1.3.
 - Consider combining with §1.1 shipped baseline (16k + multi_blank) for submission path.
