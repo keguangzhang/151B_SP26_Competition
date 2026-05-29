@@ -26,7 +26,7 @@ vs 4k full-public run: **+11.9 pp overall**, **+24.3 pp MCQ**.
 
 - `data/full_public_8k.jsonl` — `id`, `is_mcq`, `correct`
 - `data/full_public_8k.responses.jsonl` — `id`, `response`
-- `data/full_public_8k_topics.json` — topic breakdown
+- `data/full_public_8k_topics_weighted_v1.json` — topic breakdown (`scripts/topic_classify.py`)
 
 ## Deep analysis
 

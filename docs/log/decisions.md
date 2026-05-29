@@ -183,3 +183,21 @@ Append-only record of choices that matter for the final report. Template: **Cont
 **Consequences:** Do not open sft-002b on this result alone. Base-vs-LoRA A/B on holdout_20p: [sft-eval-001](runs/sft-eval-001-baseline-holdout-20p.md) **0.00 pp** vs sft-002a (same 225 ids). Next: epoch-2 or `checkpoint-*` eval; if still flat → sft-003 or Numina fallback (sft-001). Optional SC K=5 on `holdout_10p` per modest-win path.
 
 **Experiment:** [sft-002a](experiments.md#sft-002a)
+
+---
+
+## D011 — `verify_prompt` rejected on holdout_20p
+
+**Date:** 2026-05-28
+
+**Context:** Hypothesis that a light “verify before boxing” nudge (substitute back, units/range/signs, independent check) on top of shipped `multi_blank` format would catch arithmetic/sign errors without the token cost of strategy enumeration or PHP.
+
+**Options:** (A) ship `verify_prompt` on public/private (B) reject; keep `multi_blank` (C) MCQ-only verify clause
+
+**Decision:** **B** — do not ship; keep **`multi_blank`** for inference.
+
+**Rationale:** [dev-013-verify](runs/dev-013-verify-holdout-20p.md) on frozen `holdout_20p` (225 rows): **64.44% overall**, **0.00 pp** vs [sft-eval-001](runs/sft-eval-001-baseline-holdout-20p.md) (same 145/225 correct). Sub-slices: MCQ **+1.34 pp**, FF **−0.67 pp**, multi-blank **−1.22 pp** — net zero with item-level tradeoffs only.
+
+**Consequences:** Drop verification-forcing from submission path. Format instructions (`\boxed{}` layout) remain the proven prompt lever; reasoning nudges on a thinking model are low ROI at 4B scale.
+
+**Experiment:** [dev-013-verify](experiments.md#dev-013-verify)

@@ -1,8 +1,10 @@
 # Baseline model analysis (public split)
 
-This document summarizes strengths and weaknesses of the **8k-token run** evaluated on `data/public.jsonl`, using saved outputs in `data/full_public_8k.jsonl` and `data/full_public_8k.responses.jsonl` (1,126 examples). Topic breakdowns are from `data/full_public_8k_topics.json`.
+This document summarizes strengths and weaknesses of the **8k-token run** evaluated on `data/public.jsonl`, using saved outputs in `data/full_public_8k.jsonl` and `data/full_public_8k.responses.jsonl` (1,126 examples). Topic breakdowns are from `data/full_public_8k_topics_weighted_v1.json` (classifier `weighted_v1` in [`scripts/topic_classify.py`](../../scripts/topic_classify.py)).
 
 > **2026-05-23 revision:** truncation detection corrected from char-length heuristic to `</think>` tag presence. Several conclusions in §Weaknesses reversed — see §1 below.
+
+> **2026-05-28 revision:** topic tables recomputed with `weighted_v1` classifier (same as 16k analysis). Residual `other` is 14.8% of rows, not 51.6%.
 
 ## Baseline setup (what was measured)
 
@@ -13,6 +15,7 @@ This document summarizes strengths and weaknesses of the **8k-token run** evalua
 | Max generation tokens | **8,192** per question |
 | Sampling | `temperature=0.6`, `top_p=0.95`, `top_k=20` |
 | Prompting | Separate system prompts for MCQ vs free-form; answers requested in `\boxed{}` |
+| Topic classifier | `scripts/topic_classify.py` (`weighted_v1`) |
 
 **Scoring (as implemented in the notebook):**
 
@@ -54,7 +57,7 @@ The 65+ pp gap confirms that truncation — not reasoning quality — is the pri
 
 4. **Shorter problems still easier.** Mean question character length: **287** for correct vs **470** for incorrect.
 
-5. **Integration is a standout topic.** 74.5% accuracy (55 / 55 tagged items).
+5. **Integration is a standout topic.** 71.2% accuracy (59 items under `weighted_v1`).
 
 ---
 
@@ -108,20 +111,26 @@ Incorrect free-form responses: mean **14,094** characters. Correct free-form res
 
 ### 5. Topic-level gaps
 
-| Topic | Count | Accuracy | MCQ accuracy |
-|-------|------:|---------:|-------------:|
-| Number theory | 23 | **30.4%** | 28.6% |
-| Sequences / recurrences | 75 | **34.7%** | 34.4% |
-| Geometry | 115 | **35.6%** | 28.2% |
-| Limits | 14 | 35.7% | 71.4% |
-| Probability / stats | 82 | 50.0% | 69.0% |
-| Linear algebra | 23 | 52.2% | 63.2% |
-| Other (catch-all) | 581 | 56.1% | 42.2% |
-| Derivatives | 12 | 58.3% | 58.3% |
-| Polynomials / algebra | 146 | 59.6% | 76.7% |
-| Integration | 55 | **74.5%** | 74.5% |
+Classifier: `weighted_v1` — see [`baseline-public-16k.md`](baseline-public-16k.md) for 8k→16k deltas on the same taxonomy.
 
-Number theory, sequences/recurrences, and geometry are the weakest topics (all ≤36%). These topics also tend to require longer reasoning chains, making them more susceptible to truncation.
+| Topic | n | Accuracy | MCQ accuracy |
+|-------|--:|---------:|-------------:|
+| Number theory | 57 | **31.6%** | 28.6% |
+| Geometry | 108 | **36.1%** | 30.0% |
+| Sequences / recurrences | 56 | **35.7%** | 30.4% |
+| Probability / stats | 205 | **44.4%** | 66.7% |
+| Trigonometry | 65 | 43.1% | 68.8% |
+| Logs / exponents | 31 | 48.4% | 50.0% |
+| Derivatives | 21 | 52.4% | 56.2% |
+| Limits | 13 | 53.9% | 66.7% |
+| Arithmetic / word problems | 146 | 59.6% | 66.7% |
+| Linear algebra | 22 | 59.1% | 61.9% |
+| Polynomials / algebra | 163 | 65.6% | 66.7% |
+| Other (residual) | 167 | 64.1% | 38.3% |
+| Complex analysis | 13 | 61.5% | 66.7% |
+| Integration | 59 | **71.2%** | 71.2% |
+
+Weakest overall buckets: **number theory**, **geometry**, **sequences/recurrences**, and **probability/stats** (largest weak bucket at n=205). Many of these also have high MCQ truncation rates. Residual `other` is only 14.8% of rows but has a low MCQ accuracy (38.3%) — useful for error mining, not a majority catch-all.
 
 ### 6. Model capacity ceiling
 
@@ -139,7 +148,7 @@ Priority order has changed from the original analysis:
 
 3. **Free-form multi-blank.** Explicit "Answer 1: `\boxed{...}`, Answer 2: `\boxed{...}`" instructions may improve the 47.8% multi-blank rate.
 
-4. **Hard topics.** Sequences/recurrences and geometry (both ~35%) need specialized prompting or verification — but some of their weakness is also truncation-driven.
+4. **Hard topics.** Geometry, sequences/recurrences, number theory (~32–36%), and probability/stats (44.4%, n=205) need targeted data — much of MCQ weakness on these is truncation-driven at 8k.
 
 5. **MCQ format (now low priority).** Only 5 finished-think responses failed to produce a boxed letter. Format engineering addresses 2.7% of wrong MCQ, not 87% as originally believed.
 
@@ -152,6 +161,7 @@ Priority order has changed from the original analysis:
 | Date | Change |
 |------|--------|
 | 2026-05-23 | Corrected truncation detection from char-length heuristic to `</think>` presence. Reversed §1 conclusion: token truncation (84% of wrong MCQ) is the dominant failure, not format compliance (2.7%). Updated priority order accordingly. |
+| 2026-05-28 | Topic table recomputed with `weighted_v1` classifier (`scripts/topic_classify.py`); aligned with 16k analysis taxonomy. |
 
 ---
 
@@ -163,7 +173,7 @@ Priority order has changed from the original analysis:
 
 - Results: `data/full_public_8k.jsonl` — fields `id`, `is_mcq`, `correct`
 - Responses: `data/full_public_8k.responses.jsonl` — fields `id`, `response`
-- Topic breakdown: `data/full_public_8k_topics.json`
+- Topic breakdown: `data/full_public_8k_topics_weighted_v1.json` (see `scripts/topic_classify.py`)
 - Data: `data/public.jsonl`
 - Free-form scoring: `judger.py` (`Judger.auto_judge`)
 - Analysis notebook: `notebooks/baseline_analysis.ipynb`

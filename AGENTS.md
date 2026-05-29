@@ -55,8 +55,12 @@ id,response
 | `utils.py` | Shared normalization/utilities for `judger.py` |
 | `data/public.jsonl` | Labeled development set |
 | `data/eval/holdout.jsonl` | Frozen stratified eval holdout from public (225 rows, seed 42) |
-| `data/eval/watch_manifest.json` | Frozen Q4-long (30 ids) and multi-blank ≥3 (20 ids) eval watch sets |
+| `data/eval/geometry_dev.jsonl` | Full-public geometry dev slice (~133 rows; sft-005 primary eval) |
+| `data/eval/sequences_dev.jsonl` | Full-public sequences/recurrences dev slice (~74 rows; sft-006 primary eval) |
+| `data/eval/watch_manifest.json` | Frozen watch sets: geometry, sequences, Q4-long (30 ids), multi-blank ≥3 (20 ids) |
 | `scripts/build_eval_holdout.py` | Build holdout from `public.jsonl` |
+| `scripts/build_eval_geometry_set.py` | Build `geometry_dev.jsonl` from `public.jsonl` |
+| `scripts/build_eval_sequences_set.py` | Build `sequences_dev.jsonl` from `public.jsonl` |
 | `scripts/build_eval_watch_sets.py` | Build watch JSONLs + manifest from holdout |
 | `scripts/eval_watch.py` | Filter/score results by watch set name |
 | `data/private.jsonl` | Unlabeled test IDs for submission |

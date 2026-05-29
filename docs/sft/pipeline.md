@@ -30,10 +30,11 @@ Lift unified accuracy from the current **61.90%** baseline (72.00% MCQ / 56.86% 
 |---|--:|---:|---|
 | Q4 question length (≥435 chars) | 281 | 43.8% | largest single addressable bucket |
 | Multi-blank ≥6 blanks | 63 | ~34% | sharpest per-slice gap |
-| Geometry | 115 | 50.4% | only topic with clean weakness signal |
+| Probability / stats | 205 | 49.8% | largest named weak topic (`weighted_v1`) |
+| Geometry | 108 | 52.8% | clear weakness below 61.9% overall |
 | MCQ "think finished, wrong boxed" | 54 | reasoning failure | method-agnostic — needs better reasoning, not better prompts |
 
-Topic-level targeting beyond geometry is not statistically reliable: "Other" (581 / 1126 rows) is a heterogeneous catch-all, and small-n named topics (n ≤ 25) have 95% CI bands wider than their gap to overall accuracy.
+Topic taxonomy: `scripts/topic_classify.py` (`weighted_v1`). Residual `other` is 14.8% of rows (167 / 1126), not the old 51.6% catch-all. Small-n topics (limits, complex analysis, derivatives n ≤ 21) still have wide CIs.
 
 First checkpoint target:
 
@@ -86,10 +87,10 @@ the highest-EV next move is a small-corpus SFT on R1-distilled traces. The Numin
 | Source | Decision | Reason |
 | --- | --- | --- |
 | `open-r1/OpenR1-Math-220k` (config `default`, ~94k judger-correct R1 traces) | **Primary for sft-002** | DeepSeek-R1 traces directly, pre-filtered for correctness, native `<think>...</think>` format, $0 cost |
-| `simplescaling/s1K-1.1` (1000 curated R1+Gemini-Thinking traces) | **Fallback A — sft-003** | LIMO/s1 evidence; LoRA-saturation-sized; tighter curation than OpenR1; use if OpenR1 probe is flat |
-| `data/sft_corpus_v2.jsonl` (Numina, 18k, prepared) | **Fallback B — sft-001** | Already built and validated; safety floor if both distilled-trace sources fail |
+| `nvidia/OpenMathReasoning` (`cot` split, 3.2M R1+QwQ traces, AoPS/AIME/Olympiad) | **Fallback A — sft-003** | Competition-math problems; traces up to 76k chars (no 10k cap); `pass_rate_72b_tir` difficulty filter; hardest-problem coverage that OpenR1 lacks |
+| `simplescaling/s1K-1.1` (1000 curated R1+Gemini-Thinking traces) | **Fallback B — sft-004** | Demoted: max trace ~2.4k chars — shorter than OpenR1; try only if OpenMathReasoning also flat |
+| `data/sft_corpus_v2.jsonl` (Numina, 18k, prepared) | **Fallback C — sft-001** | Already built and validated; safety floor if all distilled-trace sources fail |
 | `bespokelabs/Bespoke-Stratos-17k` (R1 math+code) | Defer | Multi-domain mix; subsample if all three above plateau |
-| `nvidia/OpenMathReasoning` (~3M R1 traces) | Defer | Largest available; only if diversity-bound rather than capacity-bound |
 | `MATH train` original solutions | Exclude | Too short, not Thinking-style |
 | `AGIEval-Math`, `GaoKao-MCQ` | Exclude | Synthetic / Chinese |
 | Baseline self-distillation (MCQ) | Defer to recovery | Only if MCQ regresses post-SFT |
@@ -209,27 +210,84 @@ Reject diagram-dependent rows (Asymptote code blocks, "in the figure shown", "in
 
 ---
 
-## Fallback A: sft-003 — `s1K-1.1`
+## Fallback A: sft-003 — `nvidia/OpenMathReasoning`
 
-**Trigger:** sft-002a flat (no measurable lift on `holdout_20p`).
+**Trigger:** sft-002a flat (confirmed: [sft-002a](../log/runs/sft-002a-openr1-1k.md) 0.00 pp vs base).
 
-**Why this dataset:** 1000 hand-curated reasoning problems with R1 and Gemini-Flash-Thinking traces. Tighter quality than random-sampled OpenR1; published with the s1 paper as the minimal reasoning-SFT corpus that lifts Qwen2.5-32B-Instruct competitively with o1-preview on AIME. Smaller and more uniform than OpenR1, so if OpenR1's lack of lift is a curation problem, s1K-1.1 should expose it.
+**Why this dataset:** 3.2M CoT solutions from DeepSeek-R1 + QwQ-32B on AoPS/AIME/Olympiad competition problems. Key advantage over OpenR1: traces up to 76k chars with no artificial 10k cap — covers the long-tail distribution the base model produces at inference (p90 ~35k chars on pub-002). `pass_rate_72b_tir` field allows explicit difficulty targeting of the weak slices (Q4 long, multi-blank ≥3). OpenR1's 10k cap excluded the top 10% hardest problems entirely; this corpus has them.
+
+**Data prep:**
+
+```python
+from datasets import load_dataset
+
+# Use CoT split only — TIR requires tool calls not available at submission inference
+ds = load_dataset("nvidia/OpenMathReasoning", "cot", split="train")
+
+# Verify field names on first load — likely: problem/question, generated_solution, pass_rate_72b_tir
+# print(ds.features)
+
+MIN_CHARS = 8_000    # floor: target traces above OpenR1's hard cap
+MAX_CHARS = 28_000   # ceiling: ~7k tokens response budget within 8192 seq length
+MAX_PASS_RATE = 0.7  # exclude trivial problems (high pass rate = easy)
+MIN_PASS_RATE = 0.05 # exclude unsolvable problems
+
+def is_valid(ex):
+    resp = ex.get("generated_solution", "")
+    pr = ex.get("pass_rate_72b_tir", None)
+    if pr is None or not (MIN_PASS_RATE <= pr <= MAX_PASS_RATE):
+        return False
+    if not (MIN_CHARS <= len(resp) <= MAX_CHARS):
+        return False
+    return True
+
+filtered = ds.filter(is_valid)
+sample = filtered.shuffle(seed=42).select(range(1000))
+
+def to_sft_row(ex):
+    resp = ex["generated_solution"]
+    if "<think>" not in resp:
+        resp = f"<think>{resp}</think>"
+    return {"prompt": ex["problem"], "response": resp}
+
+sft_rows = sample.map(to_sft_row, remove_columns=sample.column_names)
+sft_rows.to_json("data/sft_corpus_openmath_1k.jsonl")
+```
+
+Filter sequence:
+1. Load `nvidia/OpenMathReasoning` `cot` split from HuggingFace.
+2. `pass_rate_72b_tir` in `[0.05, 0.70]` — hard but solvable problems only.
+3. Length: `8_000 ≤ len(generated_solution) ≤ 28_000` chars — targets long-trace hard problems, stays within 8192 token training budget.
+4. Decontam against `public.jsonl` and `private.jsonl` (substring match, first 200 chars).
+5. Shuffle seed 42, select 1000.
+6. Wrap in D005 `<think>...</think>` format if not already present.
+7. Write `data/sft_corpus_openmath_1k.jsonl` + manifest.
+
+**No MCQ needed** — MCQ already at 77%; this corpus is free-form only (format restrictions exclude MCQ by design). This is fine: weak slices are Q4 long and multi-blank ≥3, both free-form.
+
+**Training:** same SFT config, 2 epochs. Note: longer traces mean longer sequences — confirm A100 memory budget holds with a smoke run before full training.
+
+**Decision gate:** same anchors and outcome table as sft-002a.
+
+---
+
+## Fallback B: sft-004 — `s1K-1.1`
+
+**Trigger:** both sft-002a and sft-003 flat.
+
+**Note:** demoted from original Fallback A position. Max trace ~2.4k chars — shorter than OpenR1's 5.7k mean. Try only to isolate whether curation quality (not trace length) is the bottleneck.
 
 **Data prep:**
 
 ```python
 ds = load_dataset("simplescaling/s1K-1.1", split="train")
-# verify trace field name on import — likely deepseek_thinking_trajectory + deepseek_attempt
 def to_sft_row(ex):
     trace = ex["deepseek_thinking_trajectory"]
     final = ex["deepseek_attempt"]
-    return {
-        "prompt": ex["question"],
-        "response": f"<think>{trace}</think>\n\n{final}",
-    }
+    return {"prompt": ex["question"], "response": f"<think>{trace}</think>\n\n{final}"}
 ```
 
-Same length cap (≤10k chars), same decontam, same D005 wrapper format. Write `data/sft_corpus_s1k.jsonl`.
+Same decontam, D005 wrapper. Write `data/sft_corpus_s1k.jsonl`.
 
 **Training:** same SFT config, 2 epochs.
 
@@ -237,9 +295,9 @@ Same length cap (≤10k chars), same decontam, same D005 wrapper format. Write `
 
 ---
 
-## Fallback B: sft-001 — Numina `sft_corpus_v2`
+## Fallback C: sft-001 — Numina `sft_corpus_v2`
 
-**Trigger:** both sft-002a and sft-003 flat or regressive.
+**Trigger:** sft-002a, sft-003, and sft-004 all flat or regressive.
 
 **Status:** corpus fully prepared. `data/sft_corpus_v2.jsonl` (18k rows: 15k Numina base + 1.5k long-trace + 1.5k multi-blank synthetic). Built by `scripts/build_sft_corpus.py` per [D004](../log/decisions.md#d004); audit in [`numina-clean-audit.md`](numina-clean-audit.md).
 
@@ -439,7 +497,7 @@ Move to Tier 3 (RL — GRPO/DPO). Compute is expensive on A100; revisit only aft
 Ranked by current likelihood given the OpenR1-primary plan.
 
 1. **R1 trace style differs from Qwen3-Thinking's calibrated thinking.** Most insidious failure: model still reasons but in an R1 rhythm that subtly hurts on competition-style problems. Mitigation: explicit D005 `<think>` wrapping; track tag emission rates; conservative LR (`1e-5`); 2-epoch cap on small corpora.
-2. **R1 trace length distribution exceeds 4B student capacity.** R1 produces long traces (often 8–15k tokens); 4B student may start truncating at 8k cap during inference. Mitigation: hard length cap ≤10k chars in filter; oversample shorter-but-correct traces; eval mean response length per checkpoint.
+2. **Trace length mismatch.** OpenR1's 10k char cap (sft-002a) was confirmed to pull base model output from 14k → 9.6k mean with zero accuracy gain — the model learned a shorter distribution, not better reasoning. sft-003 (OpenMathReasoning) deliberately targets 8k–28k char traces to match the inference distribution. Risk is the reverse: very long training traces may hit the 8192 token sequence budget. Mitigation: 28k char cap ≈ 7k tokens leaves ~1k token headroom for question + template; confirm with smoke run; eval mean response length vs base.
 3. **MCQ regression from FF-heavy mix.** OpenR1 is overwhelmingly free-form math (AIME / MATH / competition style). MCQ at 72% is the slice with most to lose. Mitigation: hard MCQ floor stop rule (−3 pp from pub-002); no MCQ data in sft-002; recovery phase has MCQ self-distillation if needed.
 4. **Trace-style collapse.** Short or wrongly formatted targets can kill thinking behavior. Mitigation: `len(response) ≥ ~2000` floor on filtered rows; validate `<think>` schema before training; smoke run before full training.
 5. **Format mismatch between training and inference.** Training rows must match final `build_prompt(...)` and `apply_chat_template(...)` path. Mitigation: tokenized sample inspection before training; build through same path used by pub-002.
@@ -544,13 +602,24 @@ Same as sft-002a: **~1.5–2 hr A100**.
 - [ ] Smoke train; full train 2 epochs; eval; decide.
 - [ ] Log to `docs/log/runs/sft-002b-openr1-5k.md`.
 
-### sft-003 — s1K-1.1 fallback (if sft-002a flat)
+### sft-003 — OpenMathReasoning probe (Fallback A, triggered by sft-002a flat)
+
+- [ ] Load `nvidia/OpenMathReasoning` `cot` split; verify field names (`problem`, `generated_solution`, `pass_rate_72b_tir`).
+- [ ] Apply filters: `pass_rate_72b_tir` in [0.05, 0.70]; `8_000 ≤ len(generated_solution) ≤ 28_000`; decontam vs `public.jsonl` + `private.jsonl`.
+- [ ] Shuffle seed 42, select 1000; format to D005 wrapper.
+- [ ] Write `data/sft_corpus_openmath_1k.jsonl` + manifest (include length distribution p25/p50/p95, pass_rate distribution, filter retention rate).
+- [ ] Spot check 10 rows: confirm long exploratory trace, `<think>` wrap, `\boxed{}` after close, no CJK, no figure-dependent.
+- [ ] Smoke train 50 steps; confirm traces not truncated in tokenized output; inspect 10 generations.
+- [ ] Full SFT 2 epochs; eval on `holdout_20p` + watch sets; apply decision gate.
+- [ ] Log to `docs/log/runs/sft-003-openmath-1k.md`.
+
+### sft-004 — s1K-1.1 (Fallback B, if sft-003 also flat)
 
 - [ ] Load `simplescaling/s1K-1.1`; verify trace field names.
 - [ ] Format to D005 wrapper.
 - [ ] Write `data/sft_corpus_s1k.jsonl` + manifest.
 - [ ] Smoke train; full train 2 epochs; eval; decide.
-- [ ] Log to `docs/log/runs/sft-003-s1k.md`.
+- [ ] Log to `docs/log/runs/sft-004-s1k.md`.
 
 ### sft-001 — Numina fallback (if both distilled options fail)
 

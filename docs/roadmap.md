@@ -18,7 +18,7 @@ Secondary bottlenecks ranked by leverage (only slices with N large enough to tru
 
 1. **Long questions** (Q4, ≥435 chars, n=281) score **43.8%** — 35 pp below short questions. Tightest signal.
 2. **High-blank-count free-form** (≥6 blanks, n=63) score **~34%** — multi-blank prompt is already applied; gap is reasoning.
-3. **Geometry** (n=115) at **50.4%** — only topic with clean weakness signal (95% CI ±9.1). "Other" (581 rows) is a heterogeneous catch-all and uninterpretable; small-n topics (number theory, limits, derivatives, linear algebra at n=12–23) have CI bands wider than their gap to overall — ignore them as targets.
+3. **Probability/stats** (n=205) at **49.8%** and **geometry** (n=108) at **52.8%** — largest named weak topics (`weighted_v1` classifier). Residual `other` is only 14.8% of rows.
 4. **MCQ reasoning errors** — 51.4% of wrong MCQ at 16k are "think finished, wrong `\boxed{Letter}`" (n=54). Method-agnostic finding: inference tricks can't fix these; needs SFT.
 
 ---
@@ -125,20 +125,17 @@ GRPO/DPO with `judger` reward — after SFT plateaus. See original tier detail i
 
 ## Tier 4 — Targeted weaknesses (16k baselines)
 
-Topic counts and 95% Wald CIs from `data/full_public_16k_topics.json`. **Caveat:** "Other" is 51.6% of the dataset (581 / 1126) — a heterogeneous catch-all, not a coherent topic. Most named topics have n ≤ 25 with CI bands wider than the gap to the overall mean (61.9%); their accuracy numbers are noise.
+Topic counts and 95% Wald CIs from `data/full_public_16k_topics_weighted_v1.json` (`scripts/topic_classify.py`, `weighted_v1`). Residual **`other` is 14.8%** (167 / 1126), not the old 51.6% catch-all.
 
 | Topic | n | Acc | 95% CI ± | Signal |
 |-------|--:|----:|---------:|--------|
-| other | 581 | 62.1% | ±3.9 | uninterpretable — catch-all |
-| polynomials/algebra | 146 | 63.7% | ±7.8 | near overall — no gap |
-| **geometry** | 115 | **50.4%** | ±9.1 | **real weakness — only topic with clean signal** |
-| probability/stats | 82 | 58.5% | ±10.7 | within noise |
-| sequences/recurrences | 75 | 58.7% | ±11.1 | within noise |
-| integration | 55 | 87.3% | ±8.8 | real strength |
-| linear algebra | 23 | 60.9% | ±19.9 | noise |
-| number theory | 23 | 56.5% | ±20.3 | noise |
-| limits | 14 | 57.1% | ±25.9 | noise |
-| derivatives | 12 | 83.3% | ±21.1 | noise |
+| **probability/stats** | 205 | **49.8%** | ±6.8 | **largest weak bucket** |
+| **geometry** | 108 | **52.8%** | ±9.4 | **clear weakness** |
+| trigonometry | 65 | 53.9% | ±12.1 | moderate weakness |
+| sequences/recurrences | 56 | 62.5% | ±12.7 | improved at 16k; watch MCQ errors |
+| integration | 59 | 84.8% | ±9.2 | strength |
+| polynomials/algebra | 163 | 68.1% | ±7.2 | near overall |
+| other (residual) | 167 | 73.0% | ±6.7 | small residual; MCQ still weak |
 
 **Actionable signal for SFT mix** (slices with tight enough N to trust):
 
@@ -146,10 +143,11 @@ Topic counts and 95% Wald CIs from `data/full_public_16k_topics.json`. **Caveat:
 |---|--:|---:|---|
 | Q4 question length (≥435 chars) | 281 | **43.8%** | §4 of 16k analysis |
 | Multi-blank ≥6 blanks | 63 | **~34%** | §3 of 16k analysis |
-| Geometry | 115 | **50.4%** | this table |
-| MCQ "think finished, wrong boxed" | 54 | reasoning failures | §1 of 16k analysis |
+| Probability / stats | 205 | **49.8%** | topic table (16k) |
+| Geometry | 108 | **52.8%** | topic table (16k) |
+| MCQ "think finished, wrong boxed" | 54 | reasoning failures | §2 of 16k analysis |
 
-Strategy: oversample **long-context** and **multi-blank** problems in the Numina mix; weight geometry; ignore the small-n topic differentials and "Other" entirely.
+Strategy: oversample **long-context**, **multi-blank**, **probability/stats**, and **geometry** in the Numina mix; use sequences/recurrences for MCQ reasoning errors, not overall accuracy.
 
 ---
 

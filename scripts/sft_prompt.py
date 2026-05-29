@@ -39,6 +39,18 @@ GEOMETRY_RE = re.compile(
     r"perpendicular|parallel|inradius|circumradius|circumcircle)\b",
     re.I,
 )
+GEOMETRY_QUESTION_RE = re.compile(
+    r"\b(triangle|circle|angle|polygon|quadrilateral|rectangle|square|"
+    r"parallelogram|trapezoid|rhombus|pentagon|hexagon|chord|radius|diameter|"
+    r"arc|sector|perimeter|circumference|hypotenuse|isosceles|equilateral|"
+    r"congruent|similar|coordinate[s]?\s+geom|analytic\s+geom|euclidean|"
+    r"tangent\s+line|inscribed|circumscribed|altitude|centroid|orthocenter)\b",
+    re.I,
+)
+OPENMATH_SEQUENCE_RE = re.compile(
+    r"\b(sequence|recurrence|recursion|series|term|a_n|a_\{n\}|f\(n\)|f_n)\b",
+    re.I,
+)
 CONTIGUOUS_BOXED_GAP_RE = re.compile(r"^[\s,\$\.\;\:\-\&\\]*$")
 
 
@@ -77,6 +89,14 @@ def is_figure_dependent(text: str) -> bool:
 
 def is_geometry_flavored(text: str) -> bool:
     return bool(GEOMETRY_RE.search(text))
+
+
+def is_geometry_question(text: str) -> bool:
+    return bool(GEOMETRY_QUESTION_RE.search(text))
+
+
+def is_openmath_sequence_question(text: str) -> bool:
+    return bool(OPENMATH_SEQUENCE_RE.search(text))
 
 
 def split_thinking_response(response: str) -> tuple[str, str]:
