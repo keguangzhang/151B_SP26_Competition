@@ -5,6 +5,7 @@ Read **`AGENTS.md`** first. It is the canonical contract for constraints, data l
 ## Quick facts
 
 - **Goal:** Maximize **unified accuracy** on math reasoning with a **single ~4B** thinking-style model; **no** external APIs or tool-augmented **inference** for the graded submission path.
+- **Required model:** **`Qwen/Qwen3-4B-Thinking-2507`** only for final response generation (fine-tuning allowed; no alternative base models).
 - **Train/dev:** `data/public.jsonl` (labels). **Submit predictions for:** `data/private.jsonl` (no labels).
 - **Output:** CSV `id,response` with **full** model traces; graders extract `\boxed{…}` / letters from `response`.
 - **Scoring reference:** `judger.py` + `utils.py`; notebooks wire inference + evaluation.
