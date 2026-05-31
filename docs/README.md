@@ -19,7 +19,7 @@ Registry row: [`pub-002`](log/experiments.md#pub-002). Analysis: [`analysis/base
 ## Active work
 
 - **Inference:** pub-002 (16k + adaptive multi-blank prompt) shipped at 61.90% overall / 72.00% MCQ. Reasoning errors now dominate wrong MCQ (51.4%); truncation mostly solved.
-- **SFT:** [sft-006](log/runs/sft-006-openmath-seq-1k.md) sequences 1k **+10.81 pp** on `sequences_dev` but **−4.00 pp** holdout (60.44%, MCQ −5.33 pp) — do not scale as-is. [sft-002a](log/runs/sft-002a-openr1-1k.md) OpenR1 1k **flat** on holdout — see [`sft/pipeline.md`](sft/pipeline.md).
+- **SFT:** [sft-007](log/runs/sft-007-openmath-weak-5k.md) weak-topic + anchor ~5k **planned** (gentle LoRA; §8 eval in `sft_train.ipynb`). [sft-006](log/runs/sft-006-openmath-seq-1k.md) sequences 1k **+10.81 pp** on `sequences_dev` but **−4.00 pp** holdout — do not scale as-is. [sft-002a](log/runs/sft-002a-openr1-1k.md) OpenR1 1k **flat** on holdout — see [`sft/pipeline.md`](sft/pipeline.md).
 - **Analysis 2026-05-24:** 16k failure-mode shift — truncation 84% → 41% of wrong MCQ; reasoning errors now 51.4%. See [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md).
 
 ## Quick links
@@ -34,6 +34,8 @@ Registry row: [`pub-002`](log/experiments.md#pub-002). Analysis: [`analysis/base
 | External-evidence technique survey (2026-05-24) | [`research/2026-05-24-improvement-techniques-survey.md`](research/2026-05-24-improvement-techniques-survey.md) |
 | 8k public error analysis | [`analysis/baseline-public-8k.md`](analysis/baseline-public-8k.md) |
 | 16k public error analysis | [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md) |
+| 32k public error analysis | [`analysis/baseline-public-32k.md`](analysis/baseline-public-32k.md) |
+| priv-001 private submission (48% LB) | [`analysis/private-submission-32k-priv-001.md`](analysis/private-submission-32k-priv-001.md) |
 | SFT plan / data spec / QA | [`sft/`](sft/) |
 | Numina clean corpus audit (2026-05-21) | [`sft/numina-clean-audit.md`](sft/numina-clean-audit.md) |
 | Colab + vLLM install / env | [`infra/vllm-colab-l4.md`](infra/vllm-colab-l4.md) |

@@ -40,7 +40,7 @@ Fill each section with links to registry rows and analysis — avoid copying met
 ## 6. Results and comparison
 
 - Best model config: [`README.md`](README.md) — Current best.
-- Leaderboard / private: *(priv-001 when submitted)*.
+- Leaderboard / private: **priv-001** — 48.0% interim LB ([`analysis/private-submission-32k-priv-001.md`](analysis/private-submission-32k-priv-001.md)).
 
 ## 7. Discussion
 

@@ -50,12 +50,16 @@ id,response
 | `notebooks/sft_train.ipynb` | QLoRA SFT on `data/sft_corpus.jsonl` (smoke + full run; Drive checkpoints) |
 | `notebooks/sft_eval.ipynb` | SFT checkpoint eval on frozen `data/eval/holdout.jsonl` (LoRA + extended metrics) |
 | `notebooks/submission.ipynb` | Full `private.jsonl` inference → `results/submission.csv` |
+| `notebooks/submission_analysis.ipynb` | Pre-upload QA on private responses (completeness, truncation, format) |
 | `judger.py` | Grading logic aligned with the competition extractors |
 | `utils.py` | Shared normalization/utilities for `judger.py` |
 | `data/public.jsonl` | Labeled development set |
 | `data/eval/holdout.jsonl` | Frozen stratified eval holdout from public (225 rows, seed 42) |
-| `data/eval/geometry_dev.jsonl` | Full-public geometry dev slice (~133 rows; sft-005 primary eval) |
+| `data/eval/geometry_dev.jsonl` | Full-public geometry dev slice (~133 rows; sft-005 / sft-007 upside eval) |
+| `data/eval/prob_stats_dev.jsonl` | Full-public probability/stats dev slice (~205 rows; `topic_classify`; sft-007 upside eval) |
 | `data/eval/sequences_dev.jsonl` | Full-public sequences/recurrences dev slice (~74 rows; sft-006 primary eval) |
+| `scripts/build_eval_prob_stats_set.py` | Build `prob_stats_dev.jsonl` from `public.jsonl` |
+| `scripts/build_sft_corpus_sft007.py` | Build sft-007 ~5k OpenMath corpus + manifest |
 | `data/eval/watch_manifest.json` | Frozen watch sets: geometry, sequences, Q4-long (30 ids), multi-blank ≥3 (20 ids) |
 | `scripts/build_eval_holdout.py` | Build holdout from `public.jsonl` |
 | `scripts/build_eval_geometry_set.py` | Build `geometry_dev.jsonl` from `public.jsonl` |

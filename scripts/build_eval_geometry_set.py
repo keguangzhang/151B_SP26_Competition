@@ -13,7 +13,7 @@ from typing import Any
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from scripts.sft_prompt import is_geometry_question  # noqa: E402
+from scripts.topic_classify import classify_topic  # noqa: E402
 
 DEFAULT_PUBLIC = REPO / "data" / "public.jsonl"
 EVAL_DIR = REPO / "data" / "eval"
@@ -43,7 +43,7 @@ def build_eval_geometry_set(
     manifest_path: Path,
 ) -> dict[str, Any]:
     public_rows = read_jsonl(public_path)
-    pool = [r for r in public_rows if is_geometry_question(r["question"])]
+    pool = [r for r in public_rows if classify_topic(r["question"]) == "geometry"]
     pool.sort(key=lambda r: r.get("id", 0))
 
     write_jsonl(geometry_jsonl, pool)
@@ -54,8 +54,8 @@ def build_eval_geometry_set(
 
     geometry_meta = {
         "name": "geometry",
-        "description": "Full-public geometry dev set (AM-Qwen keyword classifier)",
-        "criteria": {"geometry_keywords": True},
+        "description": "Full-public geometry dev set (topic_classify weighted_v1)",
+        "criteria": {"topic_classify": "geometry"},
         "target_n": len(pool),
         "seed": None,
         "pool_n": len(public_rows),

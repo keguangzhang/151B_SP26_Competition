@@ -201,3 +201,21 @@ Append-only record of choices that matter for the final report. Template: **Cont
 **Consequences:** Drop verification-forcing from submission path. Format instructions (`\boxed{}` layout) remain the proven prompt lever; reasoning nudges on a thinking model are low ROI at 4B scale.
 
 **Experiment:** [dev-013-verify](experiments.md#dev-013-verify)
+
+---
+
+## D012 — sft-007 weak-topic + anchor corpus (pending run)
+
+**Date:** 2026-05-30
+
+**Context:** Prior 1k OpenMath slices (sft-005 geo flat holdout, sft-006 seq +10.8 pp on sequences but −4 pp holdout) suggest targeted weak-topic data at larger scale with **gentler** LoRA may lift geometry / prob-stats / trig without MCQ regression. Holdout deltas at n=225 are noise-level; use holdout as a **non-regression guard** only.
+
+**Options:** (A) sft-007 ~5k OpenMath + anchor, gentle LoRA, inline §8 eval (B) OpenR1 anchor mix (C) defer SFT; inference only
+
+**Decision:** **A** — implement [sft-007 design](../../superpowers/specs/2026-05-30-sft-007-openmath-weak-topic-anchor-design.md); **ship private only if** holdout ≥ 64.44% overall and MCQ ≥ 77% **and** a weak-topic dev slice beats pub-002.
+
+**Rationale:** Single-source OpenMath keeps trace style coherent; general anchor slice replaces OpenR1 for forgetting defense; lr/α dampening addresses sft-006-style MCQ erosion without attention-only LoRA.
+
+**Consequences:** Repo wired: `build_sft_corpus_sft007.py`, `prob_stats_dev.jsonl`, `sft_train.ipynb` §8 eval. **Outcome TBD** after Colab — fill [sft-007 run note](runs/sft-007-openmath-weak-5k.md) and update this entry.
+
+**Experiment:** [sft-007](experiments.md#sft-007)
