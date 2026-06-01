@@ -36,6 +36,7 @@ Registry row: [`pub-002`](log/experiments.md#pub-002). Analysis: [`analysis/base
 | 16k public error analysis | [`analysis/baseline-public-16k.md`](analysis/baseline-public-16k.md) |
 | 32k public error analysis | [`analysis/baseline-public-32k.md`](analysis/baseline-public-32k.md) |
 | priv-001 private submission (48% LB) | [`analysis/private-submission-32k-priv-001.md`](analysis/private-submission-32k-priv-001.md) |
+| dev-014 precision item-level error analysis → motivates `precision_v2` | [`analysis/dev-014-error-analysis.md`](analysis/dev-014-error-analysis.md) |
 | SFT plan / data spec / QA | [`sft/`](sft/) |
 | Numina clean corpus audit (2026-05-21) | [`sft/numina-clean-audit.md`](sft/numina-clean-audit.md) |
 | Colab + vLLM install / env | [`infra/vllm-colab-l4.md`](infra/vllm-colab-l4.md) |
