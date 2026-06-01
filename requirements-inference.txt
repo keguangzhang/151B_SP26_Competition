@@ -1,0 +1,11 @@
+# Inference stack for run_inference.py (matches notebooks/submission.ipynb).
+# Install PyTorch with CUDA first — see README.md.
+
+sympy
+numpy
+tqdm
+antlr4-python3-runtime==4.11.1
+transformers>=4.51.0
+# vLLM 0.20.0 + CUDA 12.9 wheel (Linux x86_64):
+# pip install "https://github.com/vllm-project/vllm/releases/download/v0.20.0/vllm-0.20.0+cu129-cp38-abi3-manylinux_2_31_x86_64.whl" --extra-index-url https://download.pytorch.org/whl/cu129
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu129
